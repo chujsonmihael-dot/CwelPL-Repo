@@ -1,10 +1,23 @@
-#images {
+#Images img {
     width: 256px;
     height: auto;
     padding-right: 10px;
+    max-width: 100%;
 }
 body {
     background-color: #363636;
     font: sans-serif;
+    font-size: 32px;
+    color: #ffffff;
+    outline: black 3px solid;
     position: relative;
+}
+
+#uploadSection {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background-color: #4a4a4a;
+    padding: 10px;
+    border-radius: 5px;
 }
