@@ -1,4 +1,10 @@
 #images {
     width: 256px;
-    height: relative;
+    height: auto;
+    padding-right: 10px;
+}
+body {
+    background-color: #363636;
+    font: sans-serif;
+    position: relative;
 }
