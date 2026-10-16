@@ -29,18 +29,22 @@
 }
 body {
     background-color: #363636;
-    font: sans-serif;
-    font-size: 32px;
+    font-family: sans-serif;
     color: #ffffff;
     outline: black 3px solid;
-    position: relative;
+    margin: 0;
+    padding: 16px;
+}
+
+#contentNotice {
+    margin: 0 0 16px;
+    font-size: 18px;
+    line-height: 1.5;
 }
 
 #uploadSection {
-    position: absolute;
-    top: 10px;
-    left: 10px;
     background-color: #4a4a4a;
     padding: 10px;
     border-radius: 5px;
+    margin-bottom: 16px;
 }
