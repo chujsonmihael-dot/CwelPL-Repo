@@ -1,8 +1,16 @@
-function displayImage(image, alt = "Uploaded image") {
+function displayImage(image) {
+    const figure = document.createElement("figure");
+    figure.className = "imageItem";
+
     const img = document.createElement("img");
     img.src = image.url;
-    img.alt = alt;
-    document.getElementById("Images").appendChild(img);
+    img.alt = image.filename;
+
+    const caption = document.createElement("figcaption");
+    caption.textContent = image.filename;
+
+    figure.append(img, caption);
+    document.getElementById("Images").appendChild(figure);
 }
 
 async function readJsonResponse(response, endpoint) {
@@ -60,7 +68,7 @@ async function uploadImage() {
             throw new Error(result.error || "The image could not be uploaded.");
         }
 
-        displayImage(result, selectedFile.name);
+        displayImage(result);
         status.textContent = "Image uploaded successfully.";
         input.value = "";
     } catch (error) {

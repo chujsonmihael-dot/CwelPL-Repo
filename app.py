@@ -6,6 +6,7 @@ from flask import Flask, jsonify, request, send_from_directory
 from vercel.blob import sync as blob
 from vercel.blob.errors import BlobError
 from werkzeug.exceptions import RequestEntityTooLarge
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
@@ -23,6 +24,10 @@ IMAGE_FORMATS = {
     b"GIF89a": ("gif", "image/gif"),
 }
 IMAGE_EXTENSIONS = {".png", ".jpg", ".gif", ".webp"}
+
+
+def get_display_filename(storage_filename):
+    return storage_filename.split("__", 1)[-1]
 
 
 @app.get("/")
@@ -50,7 +55,12 @@ def list_uploaded_images():
     if USE_BLOB_STORAGE:
         try:
             images = [
-                {"filename": item.pathname.removeprefix("images/"), "url": item.url}
+                {
+                    "filename": get_display_filename(
+                        item.pathname.removeprefix("images/")
+                    ),
+                    "url": item.url,
+                }
                 for item in blob.query_blobs(prefix="images/")
                 if Path(item.pathname).suffix.lower() in IMAGE_EXTENSIONS
             ]
@@ -64,7 +74,15 @@ def list_uploaded_images():
         for path in IMAGE_DIR.iterdir()
         if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
     )
-    return jsonify(images=[{"filename": name, "url": f"/images/{name}"} for name in filenames])
+    return jsonify(
+        images=[
+            {
+                "filename": get_display_filename(name),
+                "url": f"/images/{name}",
+            }
+            for name in filenames
+        ]
+    )
 
 
 @app.post("/upload")
@@ -91,11 +109,13 @@ def upload_image():
         return jsonify(error="Upload a valid PNG, JPEG, GIF, or WebP image."), 400
 
     extension, content_type = image_format
-    filename = f"{uuid4().hex}.{extension}"
+    safe_original_name = secure_filename(uploaded_file.filename) or "image"
+    display_filename = f"{Path(safe_original_name).stem or 'image'}.{extension}"
+    storage_filename = f"{uuid4().hex}__{display_filename}"
     if USE_BLOB_STORAGE:
         try:
             uploaded_blob = blob.put_blob(
-                f"images/{filename}",
+                f"images/{storage_filename}",
                 image_data,
                 access="public",
                 content_type=content_type,
@@ -103,10 +123,13 @@ def upload_image():
         except BlobError:
             app.logger.exception("Failed to upload image to Vercel Blob")
             return jsonify(error="Image storage is unavailable. Check the Vercel Blob store configuration."), 503
-        return jsonify(filename=filename, url=uploaded_blob.url), 201
+        return jsonify(filename=display_filename, url=uploaded_blob.url), 201
 
-    (IMAGE_DIR / filename).write_bytes(image_data)
-    return jsonify(filename=filename, url=f"/images/{filename}"), 201
+    (IMAGE_DIR / storage_filename).write_bytes(image_data)
+    return jsonify(
+        filename=display_filename,
+        url=f"/images/{storage_filename}",
+    ), 201
 
 
 @app.errorhandler(RequestEntityTooLarge)

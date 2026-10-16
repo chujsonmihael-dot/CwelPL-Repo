@@ -1,8 +1,27 @@
-#Images img {
+#Images {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.imageItem {
+    width: 256px;
+    max-width: 100%;
+    margin: 0;
+    padding: 10px;
+}
+
+.imageItem img {
     width: 256px;
     height: auto;
-    padding-right: 10px;
     max-width: 100%;
+    display: block;
+}
+
+.imageItem figcaption {
+    overflow-wrap: anywhere;
+    font-size: 16px;
+    text-align: center;
 }
 body {
     background-color: #363636;
