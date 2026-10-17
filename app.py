@@ -31,6 +31,7 @@ def get_display_filename(storage_filename):
 
 
 @app.get("/")
+@app.get("/index.html")
 def index():
     return send_from_directory(BASE_DIR, "index.html")
 

@@ -50,10 +50,12 @@ body {
 }
 
 .termsButton {
+    position: right;
     display: inline-block;
     padding: 8px 12px;
     border-radius: 5px;
     background-color: #4a4a4a;
+    font-size: 32px;
     color: #ffffff;
     text-decoration: none;
 }
