@@ -119,11 +119,18 @@ async function uploadImage() {
         displayImage(result);
         status.textContent = "Image uploaded successfully.";
         input.value = "";
+        document.getElementById("selectedFileName").textContent = "No file chosen";
     } catch (error) {
         status.textContent = error.message || "Could not optimize or upload the image.";
     } finally {
         uploadButton.disabled = false;
     }
 }
+
+document.getElementById("input").addEventListener("change", (event) => {
+    const input = event.currentTarget;
+    document.getElementById("selectedFileName").textContent =
+        input.files[0]?.name || "No file chosen";
+});
 
 loadUploadedImages();

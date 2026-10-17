@@ -9,11 +9,15 @@
 <body>
     <h1 id="contentNotice">Users are responsible for the content they submit. The site operator does not necessarily endorse user submissions. If you believe content hosted on this site is unlawful or infringes your rights, please contact jonathandoe312@proton.me and include the ID (name) of the offending content. Reports will be reviewed and appropriate action will be taken where required by applicable law.</h1>
 
-    <p><a class="termsButton" href="terms.html">T&amp;C</a></p>
-    <div id="uploadSection">
-        <input type="file" id="input" accept="image/png,image/jpeg,image/gif,image/webp">
-        <button id="uploadButton" type="button" onclick="uploadImage()">Upload</button>
-        <p id="uploadStatus" role="status"></p>
+    <div class="pageActions">
+        <div id="uploadSection">
+            <input type="file" id="input" accept="image/png,image/jpeg,image/gif,image/webp">
+            <label class="uploadControl" for="input">Choose file</label>
+            <span id="selectedFileName" aria-live="polite">No file chosen</span>
+            <button id="uploadButton" type="button" onclick="uploadImage()">Upload</button>
+            <p id="uploadStatus" role="status"></p>
+        </div>
+        <a class="termsButton" href="terms.html">T&amp;C</a>
     </div>
     <div id="Images" aria-live="polite"></div>
     <script src="script.js"></script>
