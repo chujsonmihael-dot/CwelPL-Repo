@@ -24,6 +24,49 @@ async function readJsonResponse(response, endpoint) {
     return response.json();
 }
 
+async function optimizeImage(file) {
+    if (file.type === "image/gif") {
+        return file;
+    }
+
+    const bitmap = await createImageBitmap(file);
+    try {
+        const scale = Math.min(256 / bitmap.width, 256 / bitmap.height, 1);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+        canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+
+        const context = canvas.getContext("2d");
+        if (!context) {
+            throw new Error("This browser could not prepare the image for upload.");
+        }
+        context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+        const optimizedBlob = await new Promise((resolve, reject) => {
+            canvas.toBlob((blob) => {
+                if (blob) {
+                    resolve(blob);
+                } else {
+                    reject(new Error("This browser could not compress the image."));
+                }
+            }, "image/webp", 0.82);
+        });
+
+        if (scale === 1 && optimizedBlob.size >= file.size) {
+            return file;
+        }
+
+        const extension = optimizedBlob.type === "image/webp" ? "webp" : "png";
+        const baseName = file.name.replace(/\.[^.]+$/, "");
+        return new File([optimizedBlob], `${baseName}.${extension}`, {
+            type: optimizedBlob.type,
+            lastModified: file.lastModified
+        });
+    } finally {
+        bitmap.close();
+    }
+}
+
 async function loadUploadedImages() {
     const status = document.getElementById("uploadStatus");
 
@@ -52,12 +95,17 @@ async function uploadImage() {
         return;
     }
 
-    const formData = new FormData();
-    formData.append("image", selectedFile);
     uploadButton.disabled = true;
-    status.textContent = "Uploading...";
+    status.textContent = "Optimizing image...";
 
     try {
+        const imageToUpload = await optimizeImage(selectedFile);
+        const formData = new FormData();
+        formData.append("image", imageToUpload);
+        status.textContent = imageToUpload === selectedFile
+            ? "Uploading image..."
+            : "Uploading optimized image...";
+
         const response = await fetch("/upload", {
             method: "POST",
             body: formData
@@ -72,7 +120,7 @@ async function uploadImage() {
         status.textContent = "Image uploaded successfully.";
         input.value = "";
     } catch (error) {
-        status.textContent = error.message || "Could not connect to the upload server.";
+        status.textContent = error.message || "Could not optimize or upload the image.";
     } finally {
         uploadButton.disabled = false;
     }

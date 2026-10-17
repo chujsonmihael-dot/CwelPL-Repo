@@ -48,3 +48,28 @@ body {
     border-radius: 5px;
     margin-bottom: 16px;
 }
+
+.termsButton {
+    display: inline-block;
+    padding: 8px 12px;
+    border-radius: 5px;
+    background-color: #4a4a4a;
+    color: #ffffff;
+    text-decoration: none;
+}
+
+.termsButton:hover,
+.termsButton:focus-visible {
+    background-color: #5a5a5a;
+    text-decoration: underline;
+}
+
+.termsContent {
+    max-width: 800px;
+    line-height: 1.6;
+}
+
+.termsContent h1,
+.termsContent h2 {
+    line-height: 1.3;
+}

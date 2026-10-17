@@ -35,6 +35,11 @@ def index():
     return send_from_directory(BASE_DIR, "index.html")
 
 
+@app.get("/terms.html")
+def terms():
+    return send_from_directory(BASE_DIR, "terms.html")
+
+
 @app.get("/style.css")
 def stylesheet():
     return send_from_directory(BASE_DIR, "style.css")
