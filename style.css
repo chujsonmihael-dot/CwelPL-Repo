@@ -168,10 +168,24 @@ body {
 
 .termsContent {
     max-width: 800px;
+    margin-inline: auto;
     line-height: 1.6;
+}
+
+.termsContent .termsButton {
+    margin-inline: auto;
 }
 
 .termsContent h1,
 .termsContent h2 {
     line-height: 1.3;
+}
+
+.termsContent p a:not(.termsButton) {
+    color: #8fd3ff;
+}
+
+.termsContent p a:not(.termsButton):hover,
+.termsContent p a:not(.termsButton):focus-visible {
+    color: #b5e3ff;
 }
