@@ -1,3 +1,7 @@
+:root {
+    --panel-radius: 8px;
+}
+
 #Images {
     display: flex;
     flex-wrap: wrap;
@@ -67,7 +71,7 @@ body {
     box-sizing: border-box;
     background-color: #4a4a4a;
     padding: 10px;
-    border-radius: 5px;
+    border-radius: var(--panel-radius);
     border: 3px solid #222222;
 }
 
@@ -148,11 +152,12 @@ body {
     padding: 8px 12px;
     height: 88px;
     box-sizing: border-box;
-    border-radius: 5px;
+    border-radius: var(--panel-radius);
     background-color: #4a4a4a;
     font-size: 48px;
     color: #ffffff;
     text-decoration: none;
+    border: 3px solid #222222;
 }
 
 .termsButton:hover,
