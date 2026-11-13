@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Cwel.pl</title>
+</head>
+<body>
+    <main class="adminPage">
+        <header class="adminHeader">
+            <h1>Admin panel</h1>
+            <button id="logoutButton" type="button" hidden>Log out</button>
+        </header>
+
+        <form id="adminLogin" class="adminLogin">
+            <label for="adminPassword">Admin password</label>
+            <input id="adminPassword" name="password" type="password" autocomplete="current-password" required>
+            <button type="submit">Log in</button>
+        </form>
+
+        <p id="adminStatus" role="status" aria-live="polite"></p>
+        <section id="adminPanel" hidden>
+            <h2>Uploaded images</h2>
+            <div id="adminImages" class="adminImages"></div>
+        </section>
+        <p><a class="termsButton adminBackLink" href="/">Back to gallery</a></p>
+    </main>
+    <script src="admin.js"></script>
+</body>
+</html>

@@ -165,7 +165,7 @@ body {
     justify-content: center;
     background: rgba(0, 0, 0, 0.78);
     z-index: 1000;
-    padding: 24px;
+    padding: 0;
     transition: opacity 0.2s ease;
 }
 
@@ -177,17 +177,16 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: min(90vw, 1200px);
-    max-height: 90vh;
-    background: rgba(0, 0, 0, 0.25);
-    border-radius: 12px;
-    padding: 20px;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    padding: 64px 80px 24px;
     box-sizing: border-box;
 }
 
 .imageModalContent img {
     max-width: 100%;
-    max-height: 86vh;
+    max-height: 100%;
     width: auto;
     height: auto;
     object-fit: contain;
@@ -233,6 +232,31 @@ body {
 
 .navModalButton.next {
     right: 18px;
+}
+
+@media (max-width: 600px) {
+    .imageModalContent {
+        padding: 64px 56px 20px;
+    }
+
+    .closeModal {
+        top: 12px;
+        right: 12px;
+    }
+
+    .navModalButton {
+        width: 40px;
+        height: 40px;
+        font-size: 30px;
+    }
+
+    .navModalButton.prev {
+        left: 8px;
+    }
+
+    .navModalButton.next {
+        right: 8px;
+    }
 }
 
 .closeModal:hover,
@@ -287,4 +311,105 @@ body {
 .termsContent p a:not(.termsButton):hover,
 .termsContent p a:not(.termsButton):focus-visible {
     color: #b5e3ff;
+}
+
+.adminPage {
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.adminHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.adminHeader h1 {
+    overflow-wrap: anywhere;
+}
+
+.adminLogin {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    max-width: 420px;
+    padding: 16px;
+    background: #4a4a4a;
+    border: 3px solid #222222;
+    border-radius: var(--panel-radius);
+}
+
+.adminLogin label {
+    grid-column: 1 / -1;
+}
+
+.adminLogin input {
+    min-width: 0;
+    padding: 10px;
+    font: inherit;
+}
+
+.adminLogin button,
+.adminHeader button,
+.adminDeleteButton {
+    padding: 10px 14px;
+    border: 2px solid #222222;
+    border-radius: var(--panel-radius);
+    background: #e5e5e5;
+    color: #000000;
+    font: inherit;
+    cursor: pointer;
+}
+
+.adminLogin button:hover,
+.adminHeader button:hover,
+.adminDeleteButton:hover {
+    background: #ffffff;
+}
+
+#adminStatus {
+    min-height: 1.5em;
+}
+
+.adminImages {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr));
+    gap: 16px;
+}
+
+.adminImage {
+    min-width: 0;
+    padding: 10px;
+    background: #4a4a4a;
+    border: 3px solid #222222;
+    border-radius: var(--panel-radius);
+}
+
+.adminImage img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: contain;
+    background: #292929;
+}
+
+.adminImageName {
+    overflow-wrap: anywhere;
+}
+
+.adminDeleteButton {
+    width: 100%;
+}
+
+.adminBackLink {
+    height: auto;
+    margin: 20px 0 0;
+    font-size: 18px;
+}
+
+#adminLogin[hidden],
+#adminPanel[hidden],
+#logoutButton[hidden] {
+    display: none;
 }

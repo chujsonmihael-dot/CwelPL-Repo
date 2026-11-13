@@ -1,9 +1,11 @@
+import hmac
 import os
+import secrets
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, session
 from vercel.blob import sync as blob
 from vercel.blob.errors import BlobError
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -11,10 +13,15 @@ from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
+app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY")
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 BASE_DIR = Path(__file__).resolve().parent
 IMAGE_DIR = BASE_DIR / "images"
 USE_BLOB_STORAGE = os.environ.get("VERCEL") == "1"
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
+app.config["SESSION_COOKIE_SECURE"] = USE_BLOB_STORAGE
 if not USE_BLOB_STORAGE:
     IMAGE_DIR.mkdir(exist_ok=True)
 
@@ -42,6 +49,11 @@ def terms():
     return send_from_directory(BASE_DIR, "terms.html")
 
 
+@app.get("/admin")
+def admin():
+    return send_from_directory(BASE_DIR, "admin.html")
+
+
 @app.get("/style.css")
 def stylesheet():
     return send_from_directory(BASE_DIR, "style.css")
@@ -52,6 +64,11 @@ def script():
     return send_from_directory(BASE_DIR, "script.js")
 
 
+@app.get("/admin.js")
+def admin_script():
+    return send_from_directory(BASE_DIR, "admin.js")
+
+
 @app.get("/images/<path:filename>")
 def uploaded_image(filename):
     return send_from_directory(IMAGE_DIR, filename)
@@ -60,6 +77,8 @@ def uploaded_image(filename):
 def _get_time_value(value):
     if isinstance(value, (int, float)):
         return float(value)
+    if isinstance(value, datetime):
+        return value.timestamp()
     if isinstance(value, str):
         try:
             return float(value)
@@ -87,40 +106,145 @@ def _get_uploaded_at_value(item):
     return 0
 
 
+def _list_image_entries():
+    if USE_BLOB_STORAGE:
+        entries = [
+            {
+                "filename": get_display_filename(item.pathname.removeprefix("images/")),
+                "url": item.url,
+                "uploaded_at": _get_uploaded_at_value(item),
+                "storage_id": item.pathname.removeprefix("images/"),
+            }
+            for item in blob.query_blobs(prefix="images/")
+            if Path(item.pathname).suffix.lower() in IMAGE_EXTENSIONS
+        ]
+    else:
+        entries = [
+            {
+                "filename": get_display_filename(path.name),
+                "url": f"/images/{path.name}",
+                "uploaded_at": path.stat().st_mtime,
+                "storage_id": path.name,
+            }
+            for path in IMAGE_DIR.iterdir()
+            if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
+        ]
+
+    entries.sort(
+        key=lambda item: _get_time_value(item.get("uploaded_at")),
+        reverse=True,
+    )
+    return entries
+
+
+def _admin_is_configured():
+    return bool(ADMIN_PASSWORD and app.config["SECRET_KEY"])
+
+
+def _admin_is_authenticated():
+    return session.get("admin_authenticated") is True
+
+
+def _admin_auth_error():
+    if not _admin_is_configured():
+        return jsonify(error="Admin access is not configured."), 503
+    return jsonify(error="Admin login required."), 401
+
+
 @app.get("/images")
 def list_uploaded_images():
+    try:
+        entries = _list_image_entries()
+    except BlobError:
+        app.logger.exception("Failed to list images from Vercel Blob")
+        return jsonify(error="Image storage is unavailable. Check the Vercel Blob store configuration."), 503
+    return jsonify(
+        images=[
+            {key: value for key, value in item.items() if key != "storage_id"}
+            for item in entries
+        ]
+    )
+
+
+@app.post("/admin/login")
+def admin_login():
+    if not _admin_is_configured():
+        return _admin_auth_error()
+
+    credentials = request.get_json()
+    if not isinstance(credentials, dict) or not isinstance(credentials.get("password"), str):
+        return jsonify(error="Enter the admin password."), 400
+    if not hmac.compare_digest(credentials["password"], ADMIN_PASSWORD):
+        return jsonify(error="Incorrect password."), 401
+
+    session.clear()
+    session["admin_authenticated"] = True
+    session["csrf_token"] = secrets.token_urlsafe(32)
+    return jsonify(csrf_token=session["csrf_token"])
+
+
+@app.post("/admin/logout")
+def admin_logout():
+    if not _admin_is_authenticated():
+        return _admin_auth_error()
+    if not hmac.compare_digest(
+        request.headers.get("X-CSRF-Token", ""),
+        session.get("csrf_token", ""),
+    ):
+        return jsonify(error="Invalid request token."), 403
+
+    session.clear()
+    return jsonify(success=True)
+
+
+@app.get("/admin/images")
+def admin_list_images():
+    if not _admin_is_authenticated():
+        return _admin_auth_error()
+
+    try:
+        entries = _list_image_entries()
+    except BlobError:
+        app.logger.exception("Failed to list images for admin")
+        return jsonify(error="Image storage is unavailable. Check the Vercel Blob store configuration."), 503
+    return jsonify(
+        images=entries,
+        csrf_token=session.get("csrf_token", ""),
+    )
+
+
+@app.delete("/admin/images/<path:storage_id>")
+def admin_delete_image(storage_id):
+    if not _admin_is_authenticated():
+        return _admin_auth_error()
+    if not hmac.compare_digest(
+        request.headers.get("X-CSRF-Token", ""),
+        session.get("csrf_token", ""),
+    ):
+        return jsonify(error="Invalid request token."), 403
+    if (
+        Path(storage_id).name != storage_id
+        or Path(storage_id).suffix.lower() not in IMAGE_EXTENSIONS
+    ):
+        return jsonify(error="Invalid image identifier."), 400
+
     if USE_BLOB_STORAGE:
         try:
-            images = [
-                {
-                    "filename": get_display_filename(
-                        item.pathname.removeprefix("images/")
-                    ),
-                    "url": item.url,
-                    "uploaded_at": _get_uploaded_at_value(item),
-                }
-                for item in blob.query_blobs(prefix="images/")
-                if Path(item.pathname).suffix.lower() in IMAGE_EXTENSIONS
-            ]
-            images.sort(key=lambda item: _get_time_value(item.get("uploaded_at")), reverse=True)
+            blob.delete_blob(f"images/{storage_id}")
         except BlobError:
-            app.logger.exception("Failed to list images from Vercel Blob")
+            app.logger.exception("Failed to delete image from Vercel Blob")
             return jsonify(error="Image storage is unavailable. Check the Vercel Blob store configuration."), 503
-        return jsonify(images=images)
+    else:
+        image_path = IMAGE_DIR / storage_id
+        if not image_path.is_file():
+            return jsonify(error="Image not found."), 404
+        try:
+            image_path.unlink()
+        except OSError:
+            app.logger.exception("Failed to delete local image '%s'", storage_id)
+            return jsonify(error="The image could not be deleted."), 500
 
-    image_entries = []
-    for path in IMAGE_DIR.iterdir():
-        if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS:
-            image_entries.append(
-                {
-                    "filename": get_display_filename(path.name),
-                    "url": f"/images/{path.name}",
-                    "uploaded_at": path.stat().st_mtime,
-                }
-            )
-
-    image_entries.sort(key=lambda item: item["uploaded_at"], reverse=True)
-    return jsonify(images=image_entries)
+    return jsonify(success=True)
 
 
 @app.post("/upload")
@@ -179,6 +303,13 @@ def upload_image():
 @app.errorhandler(RequestEntityTooLarge)
 def file_too_large(_error):
     return jsonify(error="Image must be 5 MB or smaller."), 413
+
+
+@app.after_request
+def prevent_admin_response_caching(response):
+    if request.path == "/admin" or request.path.startswith("/admin/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 if __name__ == "__main__":
