@@ -196,11 +196,17 @@ body {
     background: rgba(255, 255, 255, 0.05);
 }
 
-.reportImageButton {
+.imageModalActions {
     position: absolute;
     bottom: 18px;
     left: 50%;
     transform: translateX(-50%);
+    z-index: 2;
+    display: flex;
+    gap: 10px;
+}
+
+.imageModalActions button {
     padding: 9px 16px;
     border: 2px solid rgba(255, 255, 255, 0.75);
     border-radius: var(--panel-radius);
@@ -210,15 +216,15 @@ body {
     cursor: pointer;
 }
 
-.reportImageButton:hover,
-.reportImageButton:focus-visible {
+.imageModalActions button:hover,
+.imageModalActions button:focus-visible {
     background: rgba(60, 60, 60, 0.95);
 }
 
 .reportDialog {
     position: fixed;
     inset: 0;
-    z-index: 4;
+    z-index: 5;
     display: flex;
     align-items: center;
     justify-content: center;

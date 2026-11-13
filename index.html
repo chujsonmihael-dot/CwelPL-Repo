@@ -26,7 +26,10 @@
         <button id="prevImage" class="navModalButton prev" type="button" aria-label="Previous image">‹</button>
         <div class="imageModalContent">
             <img id="modalImage" src="" alt="">
-            <button id="reportImageButton" class="reportImageButton" type="button">Report image</button>
+            <div class="imageModalActions">
+                <button id="reportImageButton" class="reportImageButton" type="button">Report image</button>
+                <button id="deleteImageButton" class="deleteImageButton" type="button" hidden>Delete image</button>
+            </div>
         </div>
         <button id="nextImage" class="navModalButton next" type="button" aria-label="Next image">›</button>
         <section id="reportDialog" class="reportDialog" role="dialog" aria-modal="true" aria-labelledby="reportTitle" hidden>

@@ -350,6 +350,16 @@ def admin_login():
     return jsonify(csrf_token=session["csrf_token"])
 
 
+@app.get("/admin/session")
+def admin_session_status():
+    if not _admin_is_authenticated():
+        return jsonify(authenticated=False)
+    return jsonify(
+        authenticated=True,
+        csrf_token=session.get("csrf_token", ""),
+    )
+
+
 @app.post("/admin/logout")
 def admin_logout():
     if not _admin_is_authenticated():
