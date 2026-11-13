@@ -114,6 +114,14 @@ function displayAdminReports(reports) {
         deleteButton.addEventListener("click", () => deleteReport(report));
         actions.appendChild(deleteButton);
 
+        const deleteImageButton = document.createElement("button");
+        deleteImageButton.type = "button";
+        deleteImageButton.textContent = "Delete image";
+        deleteImageButton.addEventListener("click", () =>
+            deleteReportedImage(report, deleteImageButton, preview)
+        );
+        actions.appendChild(deleteImageButton);
+
         card.append(preview, title, details, reason, actions);
         adminReportsList.appendChild(card);
     });
@@ -147,6 +155,35 @@ async function runReportAction(report, action, endpoint, method, confirmMessage)
         await loadAdminReports();
     } catch (error) {
         adminStatus.textContent = error.message || `Could not ${action.toLowerCase()} report.`;
+    }
+}
+
+async function deleteReportedImage(report, button, preview) {
+    const confirmMessage =
+        `Permanently delete image "${report.image_filename}"? The report will remain.`;
+    if (!window.confirm(confirmMessage)) {
+        return;
+    }
+
+    button.disabled = true;
+    adminStatus.textContent = `Deleting image from report #${report.id}...`;
+    try {
+        await readAdminResponse(await fetch(
+            `/admin/images/${encodeURIComponent(report.image_id)}`,
+            {
+                method: "DELETE",
+                headers: { "X-CSRF-Token": csrfToken },
+            }
+        ));
+        button.textContent = "Image deleted";
+        const deletedMessage = document.createElement("p");
+        deletedMessage.className = "adminReportImageDeleted";
+        deletedMessage.textContent = "Image deleted";
+        preview.replaceWith(deletedMessage);
+        adminStatus.textContent = `Image from report #${report.id} deleted.`;
+    } catch (error) {
+        button.disabled = false;
+        adminStatus.textContent = error.message || "Could not delete the image.";
     }
 }
 

@@ -196,17 +196,11 @@ body {
     background: rgba(255, 255, 255, 0.05);
 }
 
-.imageModalActions {
+.reportImageButton {
     position: absolute;
     bottom: 18px;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 2;
-    display: flex;
-    gap: 10px;
-}
-
-.imageModalActions button {
     padding: 9px 16px;
     border: 2px solid rgba(255, 255, 255, 0.75);
     border-radius: var(--panel-radius);
@@ -216,8 +210,8 @@ body {
     cursor: pointer;
 }
 
-.imageModalActions button:hover,
-.imageModalActions button:focus-visible {
+.reportImageButton:hover,
+.reportImageButton:focus-visible {
     background: rgba(60, 60, 60, 0.95);
 }
 
@@ -532,6 +526,18 @@ body {
     background: #292929;
 }
 
+.adminReportImageDeleted {
+    display: flex;
+    grid-row: span 4;
+    align-items: center;
+    justify-content: center;
+    min-height: 100px;
+    padding: 8px;
+    box-sizing: border-box;
+    text-align: center;
+    background: #292929;
+}
+
 .adminReport h3,
 .adminReport p {
     margin: 0;
@@ -583,5 +589,9 @@ body {
     .adminReport img {
         grid-row: auto;
         width: min(100%, 220px);
+    }
+
+    .adminReportImageDeleted {
+        grid-row: auto;
     }
 }

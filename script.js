@@ -4,7 +4,6 @@ const closeModalButton = document.getElementById("closeModal");
 const prevImageButton = document.getElementById("prevImage");
 const nextImageButton = document.getElementById("nextImage");
 const reportImageButton = document.getElementById("reportImageButton");
-const deleteImageButton = document.getElementById("deleteImageButton");
 const reportDialog = document.getElementById("reportDialog");
 const reportForm = document.getElementById("reportForm");
 const reportPreview = document.getElementById("reportPreview");
@@ -15,7 +14,6 @@ const submitReportButton = document.getElementById("submitReport");
 let activeImageFigure = null;
 let activeImageIndex = -1;
 let activeImage = null;
-let adminCsrfToken = "";
 
 function getGalleryImages() {
     return Array.from(document.querySelectorAll(".imageItem"));
@@ -172,24 +170,6 @@ async function readJsonResponse(response, endpoint) {
     return response.json();
 }
 
-async function refreshAdminSession() {
-    try {
-        const response = await fetch("/admin/session");
-        const result = await readJsonResponse(response, "/admin/session");
-        if (!response.ok) {
-            throw new Error(result.error || "Could not check admin access.");
-        }
-
-        adminCsrfToken = result.authenticated ? result.csrf_token : "";
-        deleteImageButton.hidden = !adminCsrfToken;
-    } catch (error) {
-        adminCsrfToken = "";
-        deleteImageButton.hidden = true;
-        document.getElementById("uploadStatus").textContent =
-            error.message || "Could not check admin access.";
-    }
-}
-
 async function optimizeImage(file) {
     if (file.type === "image/gif") {
         return file;
@@ -305,42 +285,6 @@ document.getElementById("input").addEventListener("change", (event) => {
 
 reportImageButton.addEventListener("click", openReportDialog);
 document.getElementById("cancelReport").addEventListener("click", closeReportDialog);
-deleteImageButton.addEventListener("click", async () => {
-    if (!activeImage || !activeImageFigure || !adminCsrfToken) {
-        return;
-    }
-    if (!window.confirm(`Permanently delete "${activeImage.filename}"?`)) {
-        return;
-    }
-
-    const imageToDelete = activeImage;
-    const figureToDelete = activeImageFigure;
-    deleteImageButton.disabled = true;
-    const uploadStatus = document.getElementById("uploadStatus");
-    uploadStatus.textContent = "Deleting image...";
-    try {
-        const response = await fetch(
-            `/admin/images/${encodeURIComponent(imageToDelete.storage_id)}`,
-            {
-                method: "DELETE",
-                headers: { "X-CSRF-Token": adminCsrfToken },
-            }
-        );
-        const result = await readJsonResponse(response, "/admin/images");
-        if (!response.ok) {
-            throw new Error(result.error || "The image could not be deleted.");
-        }
-
-        figureToDelete.remove();
-        closeImageModal();
-        uploadStatus.textContent = "Image deleted.";
-    } catch (error) {
-        uploadStatus.textContent = error.message || "The image could not be deleted.";
-        await refreshAdminSession();
-    } finally {
-        deleteImageButton.disabled = false;
-    }
-});
 reportDialog.addEventListener("click", (event) => {
     if (event.target === reportDialog) {
         closeReportDialog();
@@ -408,4 +352,3 @@ document.addEventListener("keydown", (event) => {
 });
 
 loadUploadedImages();
-refreshAdminSession();

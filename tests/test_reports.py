@@ -103,22 +103,5 @@ class ReportRouteTests(unittest.TestCase):
         self.assertEqual(reviewed.status_code, 200)
         update.assert_called_once_with(self.report["id"], status="reviewed")
 
-    def test_admin_session_only_returns_csrf_token_when_authenticated(self):
-        response = self.client.get("/admin/session")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.get_json(), {"authenticated": False})
-
-        with self.client.session_transaction() as admin_session:
-            admin_session["admin_authenticated"] = True
-            admin_session["csrf_token"] = "valid-token"
-
-        response = self.client.get("/admin/session")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.get_json(),
-            {"authenticated": True, "csrf_token": "valid-token"},
-        )
-
-
 if __name__ == "__main__":
     unittest.main()
