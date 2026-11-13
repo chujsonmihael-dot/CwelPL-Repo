@@ -299,6 +299,7 @@ body {
     position: absolute;
     top: 18px;
     right: 18px;
+    z-index: 3;
     width: 42px;
     height: 42px;
     border: 2px solid rgba(255, 255, 255, 0.75);
