@@ -3,8 +3,17 @@ const modalImage = document.getElementById("modalImage");
 const closeModalButton = document.getElementById("closeModal");
 const prevImageButton = document.getElementById("prevImage");
 const nextImageButton = document.getElementById("nextImage");
+const reportImageButton = document.getElementById("reportImageButton");
+const reportDialog = document.getElementById("reportDialog");
+const reportForm = document.getElementById("reportForm");
+const reportPreview = document.getElementById("reportPreview");
+const reportFilename = document.getElementById("reportFilename");
+const reportReason = document.getElementById("reportReason");
+const reportStatus = document.getElementById("reportStatus");
+const submitReportButton = document.getElementById("submitReport");
 let activeImageFigure = null;
 let activeImageIndex = -1;
+let activeImage = null;
 
 function getGalleryImages() {
     return Array.from(document.querySelectorAll(".imageItem"));
@@ -23,6 +32,7 @@ function showImageAtIndex(index) {
     const imageData = {
         url: img.src,
         filename: title ? title.textContent : img.alt,
+        storage_id: activeFigure.dataset.storageId,
     };
 
     activeImageFigure = activeFigure;
@@ -47,6 +57,7 @@ function getImageTimestamp(image) {
 function openImageModal(image, figure) {
     activeImageFigure = figure;
     activeImageIndex = getGalleryImages().indexOf(figure);
+    activeImage = image;
 
     modalImage.src = image.url;
     modalImage.alt = image.filename;
@@ -63,8 +74,10 @@ function openImageModal(image, figure) {
 }
 
 function closeImageModal() {
+    closeReportDialog();
     activeImageFigure = null;
     activeImageIndex = -1;
+    activeImage = null;
     modal.setAttribute("aria-hidden", "true");
     modal.classList.add("hidden");
     document.body.classList.remove("modal-open");
@@ -72,6 +85,31 @@ function closeImageModal() {
     document.querySelectorAll(".imageItem").forEach((item) => {
         item.classList.remove("modal-active", "modal-dimmed");
     });
+}
+
+function openReportDialog() {
+    if (!activeImage) {
+        return;
+    }
+
+    reportPreview.src = activeImage.url;
+    reportPreview.alt = activeImage.filename;
+    reportFilename.textContent = activeImage.filename;
+    reportReason.value = "";
+    reportStatus.textContent = "";
+    submitReportButton.disabled = false;
+    reportDialog.hidden = false;
+    reportReason.focus();
+}
+
+function closeReportDialog() {
+    reportDialog.hidden = true;
+    reportForm.reset();
+    reportStatus.textContent = "";
+    submitReportButton.disabled = false;
+    if (!modal.classList.contains("hidden")) {
+        reportImageButton.focus();
+    }
 }
 
 function showPreviousImage() {
@@ -94,6 +132,7 @@ function displayImage(image, prepend = false) {
     const figure = document.createElement("figure");
     figure.className = "imageItem";
     figure.tabIndex = 0;
+    figure.dataset.storageId = image.storage_id || "";
 
     const img = document.createElement("img");
     img.src = image.url;
@@ -244,6 +283,43 @@ document.getElementById("input").addEventListener("change", (event) => {
         input.files[0]?.name || "No file chosen";
 });
 
+reportImageButton.addEventListener("click", openReportDialog);
+document.getElementById("cancelReport").addEventListener("click", closeReportDialog);
+reportDialog.addEventListener("click", (event) => {
+    if (event.target === reportDialog) {
+        closeReportDialog();
+    }
+});
+reportForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!activeImage || !activeImage.storage_id) {
+        reportStatus.textContent = "This image cannot be identified for reporting.";
+        return;
+    }
+
+    submitReportButton.disabled = true;
+    reportStatus.textContent = "Submitting report...";
+    try {
+        const response = await fetch("/report", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                image_id: activeImage.storage_id,
+                reason: reportReason.value,
+            }),
+        });
+        const result = await readJsonResponse(response, "/report");
+        if (!response.ok) {
+            throw new Error(result.error || "The report could not be sent.");
+        }
+
+        reportStatus.textContent = "Report submitted. Thank you.";
+    } catch (error) {
+        reportStatus.textContent = error.message || "The report could not be sent.";
+        submitReportButton.disabled = false;
+    }
+});
+
 closeModalButton.addEventListener("click", closeImageModal);
 prevImageButton.addEventListener("click", showPreviousImage);
 nextImageButton.addEventListener("click", showNextImage);
@@ -253,6 +329,13 @@ modal.addEventListener("click", (event) => {
     }
 });
 document.addEventListener("keydown", (event) => {
+    if (!reportDialog.hidden) {
+        if (event.key === "Escape") {
+            closeReportDialog();
+        }
+        return;
+    }
+
     if (event.key === "Escape" && !modal.classList.contains("hidden")) {
         closeImageModal();
     }

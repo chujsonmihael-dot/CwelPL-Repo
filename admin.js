@@ -3,6 +3,8 @@ const passwordInput = document.getElementById("adminPassword");
 const adminStatus = document.getElementById("adminStatus");
 const adminPanel = document.getElementById("adminPanel");
 const adminImages = document.getElementById("adminImages");
+const adminReports = document.getElementById("adminReports");
+const adminReportsList = document.getElementById("adminReportsList");
 const logoutButton = document.getElementById("logoutButton");
 let csrfToken = "";
 
@@ -17,6 +19,7 @@ async function readAdminResponse(response) {
 function showLogin() {
     loginForm.hidden = false;
     adminPanel.hidden = true;
+    adminReports.hidden = true;
     logoutButton.hidden = true;
     csrfToken = "";
     adminImages.replaceChildren();
@@ -25,6 +28,7 @@ function showLogin() {
 function showAdmin() {
     loginForm.hidden = true;
     adminPanel.hidden = false;
+    adminReports.hidden = false;
     logoutButton.hidden = false;
 }
 
@@ -62,6 +66,104 @@ function displayAdminImages(images) {
     });
 }
 
+function displayAdminReports(reports) {
+    adminReportsList.replaceChildren();
+
+    if (reports.length === 0) {
+        const emptyMessage = document.createElement("p");
+        emptyMessage.textContent = "No reports have been submitted.";
+        adminReportsList.appendChild(emptyMessage);
+        return;
+    }
+
+    reports.forEach((report) => {
+        const card = document.createElement("article");
+        card.className = "adminReport";
+
+        const preview = document.createElement("img");
+        preview.src = report.image_url;
+        preview.alt = report.image_filename;
+        preview.loading = "lazy";
+
+        const title = document.createElement("h3");
+        title.textContent = `Report #${report.id}: ${report.image_filename}`;
+
+        const details = document.createElement("p");
+        details.textContent =
+            `${new Date(report.created_at).toLocaleString()} · ` +
+            report.status;
+
+        const reason = document.createElement("p");
+        reason.className = "adminReportReason";
+        reason.textContent = report.reason;
+
+        const actions = document.createElement("div");
+        actions.className = "adminReportActions";
+
+        if (report.status !== "reviewed") {
+            const reviewButton = document.createElement("button");
+            reviewButton.type = "button";
+            reviewButton.textContent = "Mark reviewed";
+            reviewButton.addEventListener("click", () => reviewReport(report));
+            actions.appendChild(reviewButton);
+        }
+
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.textContent = "Delete report";
+        deleteButton.addEventListener("click", () => deleteReport(report));
+        actions.appendChild(deleteButton);
+
+        card.append(preview, title, details, reason, actions);
+        adminReportsList.appendChild(card);
+    });
+}
+
+async function loadAdminReports() {
+    try {
+        const result = await readAdminResponse(await fetch("/admin/reports"));
+        csrfToken = result.csrf_token;
+        displayAdminReports(result.reports);
+    } catch (error) {
+        adminReportsList.replaceChildren();
+        const message = document.createElement("p");
+        message.textContent = error.message || "Could not load reports.";
+        adminReportsList.appendChild(message);
+    }
+}
+
+async function runReportAction(report, action, endpoint, method, confirmMessage) {
+    if (confirmMessage && !window.confirm(confirmMessage)) {
+        return;
+    }
+
+    adminStatus.textContent = `${action} report #${report.id}...`;
+    try {
+        await readAdminResponse(await fetch(`/admin/reports/${report.id}${endpoint}`, {
+            method,
+            headers: { "X-CSRF-Token": csrfToken },
+        }));
+        adminStatus.textContent = `Report #${report.id} updated.`;
+        await loadAdminReports();
+    } catch (error) {
+        adminStatus.textContent = error.message || `Could not ${action.toLowerCase()} report.`;
+    }
+}
+
+function reviewReport(report) {
+    return runReportAction(report, "Marking", "/review", "POST");
+}
+
+function deleteReport(report) {
+    return runReportAction(
+        report,
+        "Deleting",
+        "",
+        "DELETE",
+        `Permanently delete report #${report.id}?`
+    );
+}
+
 async function loadAdminImages() {
     adminStatus.textContent = "Loading images...";
 
@@ -71,6 +173,7 @@ async function loadAdminImages() {
         displayAdminImages(result.images);
         showAdmin();
         adminStatus.textContent = "";
+        await loadAdminReports();
     } catch (error) {
         if (error.message === "Admin login required.") {
             showLogin();

@@ -26,8 +26,23 @@
         <button id="prevImage" class="navModalButton prev" type="button" aria-label="Previous image">‹</button>
         <div class="imageModalContent">
             <img id="modalImage" src="" alt="">
+            <button id="reportImageButton" class="reportImageButton" type="button">Report image</button>
         </div>
         <button id="nextImage" class="navModalButton next" type="button" aria-label="Next image">›</button>
+        <section id="reportDialog" class="reportDialog" role="dialog" aria-modal="true" aria-labelledby="reportTitle" hidden>
+            <form id="reportForm" class="reportForm">
+                <h2 id="reportTitle">Report this image</h2>
+                <img id="reportPreview" class="reportPreview" src="" alt="">
+                <p id="reportFilename" class="reportFilename"></p>
+                <label for="reportReason">Reason for report</label>
+                <textarea id="reportReason" name="reason" maxlength="5000" required></textarea>
+                <p id="reportStatus" role="status" aria-live="polite"></p>
+                <div class="reportActions">
+                    <button id="cancelReport" type="button">Cancel</button>
+                    <button id="submitReport" type="submit">Send report</button>
+                </div>
+            </form>
+        </section>
     </div>
 
     <script src="script.js"></script>
