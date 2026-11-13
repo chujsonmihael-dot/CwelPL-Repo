@@ -1,6 +1,99 @@
-function displayImage(image) {
+const modal = document.getElementById("imageModal");
+const modalImage = document.getElementById("modalImage");
+const closeModalButton = document.getElementById("closeModal");
+const prevImageButton = document.getElementById("prevImage");
+const nextImageButton = document.getElementById("nextImage");
+let activeImageFigure = null;
+let activeImageIndex = -1;
+
+function getGalleryImages() {
+    return Array.from(document.querySelectorAll(".imageItem"));
+}
+
+function showImageAtIndex(index) {
+    const galleryFigures = getGalleryImages();
+    if (!galleryFigures.length) {
+        return;
+    }
+
+    const normalizedIndex = (index + galleryFigures.length) % galleryFigures.length;
+    const activeFigure = galleryFigures[normalizedIndex];
+    const img = activeFigure.querySelector("img");
+    const title = activeFigure.querySelector("figcaption");
+    const imageData = {
+        url: img.src,
+        filename: title ? title.textContent : img.alt,
+    };
+
+    activeImageFigure = activeFigure;
+    activeImageIndex = normalizedIndex;
+    openImageModal(imageData, activeFigure);
+}
+
+function getImageTimestamp(image) {
+    const value = image.uploaded_at ?? image.created_at ?? image.created ?? image.uploadedAt ?? image.createdAt ?? 0;
+    if (typeof value === "number" && Number.isFinite(value)) {
+        return value;
+    }
+
+    if (typeof value === "string" && value.trim() !== "") {
+        const parsed = Date.parse(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    return 0;
+}
+
+function openImageModal(image, figure) {
+    activeImageFigure = figure;
+    activeImageIndex = getGalleryImages().indexOf(figure);
+
+    modalImage.src = image.url;
+    modalImage.alt = image.filename;
+    modal.setAttribute("aria-hidden", "false");
+    modal.classList.remove("hidden");
+    document.body.classList.add("modal-open");
+
+    const galleryItems = getGalleryImages();
+    galleryItems.forEach((item) => {
+        const isActive = item === figure;
+        item.classList.toggle("modal-active", isActive);
+        item.classList.toggle("modal-dimmed", !isActive);
+    });
+}
+
+function closeImageModal() {
+    activeImageFigure = null;
+    activeImageIndex = -1;
+    modal.setAttribute("aria-hidden", "true");
+    modal.classList.add("hidden");
+    document.body.classList.remove("modal-open");
+
+    document.querySelectorAll(".imageItem").forEach((item) => {
+        item.classList.remove("modal-active", "modal-dimmed");
+    });
+}
+
+function showPreviousImage() {
+    if (activeImageIndex < 0) {
+        return;
+    }
+
+    showImageAtIndex(activeImageIndex - 1);
+}
+
+function showNextImage() {
+    if (activeImageIndex < 0) {
+        return;
+    }
+
+    showImageAtIndex(activeImageIndex + 1);
+}
+
+function displayImage(image, prepend = false) {
     const figure = document.createElement("figure");
     figure.className = "imageItem";
+    figure.tabIndex = 0;
 
     const img = document.createElement("img");
     img.src = image.url;
@@ -10,7 +103,21 @@ function displayImage(image) {
     caption.textContent = image.filename;
 
     figure.append(img, caption);
-    document.getElementById("Images").appendChild(figure);
+    figure.addEventListener("click", () => openImageModal(image, figure));
+    figure.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            openImageModal(image, figure);
+        }
+    });
+
+    const gallery = document.getElementById("Images");
+    if (prepend) {
+        gallery.prepend(figure);
+        return;
+    }
+
+    gallery.appendChild(figure);
 }
 
 async function readJsonResponse(response, endpoint) {
@@ -78,7 +185,11 @@ async function loadUploadedImages() {
             throw new Error(result.error || "Saved images could not be loaded.");
         }
 
-        result.images.forEach((image) => displayImage(image));
+        const images = [...(result.images || [])].sort((a, b) => 
+            getImageTimestamp(b) - getImageTimestamp(a)
+        );
+
+        images.forEach((image) => displayImage(image));
     } catch (error) {
         status.textContent = error.message || "Could not load saved images.";
     }
@@ -116,7 +227,7 @@ async function uploadImage() {
             throw new Error(result.error || "The image could not be uploaded.");
         }
 
-        displayImage(result);
+        displayImage(result, true);
         status.textContent = "Image uploaded successfully.";
         input.value = "";
         document.getElementById("selectedFileName").textContent = "No file chosen";
@@ -131,6 +242,30 @@ document.getElementById("input").addEventListener("change", (event) => {
     const input = event.currentTarget;
     document.getElementById("selectedFileName").textContent =
         input.files[0]?.name || "No file chosen";
+});
+
+closeModalButton.addEventListener("click", closeImageModal);
+prevImageButton.addEventListener("click", showPreviousImage);
+nextImageButton.addEventListener("click", showNextImage);
+modal.addEventListener("click", (event) => {
+    if (event.target === modal) {
+        closeImageModal();
+    }
+});
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !modal.classList.contains("hidden")) {
+        closeImageModal();
+    }
+
+    if (modal.classList.contains("hidden")) {
+        return;
+    }
+
+    if (event.key === "ArrowLeft") {
+        showPreviousImage();
+    } else if (event.key === "ArrowRight") {
+        showNextImage();
+    }
 });
 
 loadUploadedImages();

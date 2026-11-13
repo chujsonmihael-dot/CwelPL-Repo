@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
@@ -56,6 +57,36 @@ def uploaded_image(filename):
     return send_from_directory(IMAGE_DIR, filename)
 
 
+def _get_time_value(value):
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            try:
+                return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+            except ValueError:
+                return 0.0
+    return 0.0
+
+
+def _get_uploaded_at_value(item):
+    for attr_name in (
+        "uploaded_at",
+        "created_at",
+        "created",
+        "last_modified",
+        "updated_at",
+        "uploadedAt",
+        "createdAt",
+    ):
+        value = getattr(item, attr_name, None)
+        if value is not None:
+            return value
+    return 0
+
+
 @app.get("/images")
 def list_uploaded_images():
     if USE_BLOB_STORAGE:
@@ -66,29 +97,30 @@ def list_uploaded_images():
                         item.pathname.removeprefix("images/")
                     ),
                     "url": item.url,
+                    "uploaded_at": _get_uploaded_at_value(item),
                 }
                 for item in blob.query_blobs(prefix="images/")
                 if Path(item.pathname).suffix.lower() in IMAGE_EXTENSIONS
             ]
+            images.sort(key=lambda item: _get_time_value(item.get("uploaded_at")), reverse=True)
         except BlobError:
             app.logger.exception("Failed to list images from Vercel Blob")
             return jsonify(error="Image storage is unavailable. Check the Vercel Blob store configuration."), 503
         return jsonify(images=images)
 
-    filenames = sorted(
-        path.name
-        for path in IMAGE_DIR.iterdir()
-        if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
-    )
-    return jsonify(
-        images=[
-            {
-                "filename": get_display_filename(name),
-                "url": f"/images/{name}",
-            }
-            for name in filenames
-        ]
-    )
+    image_entries = []
+    for path in IMAGE_DIR.iterdir():
+        if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS:
+            image_entries.append(
+                {
+                    "filename": get_display_filename(path.name),
+                    "url": f"/images/{path.name}",
+                    "uploaded_at": path.stat().st_mtime,
+                }
+            )
+
+    image_entries.sort(key=lambda item: item["uploaded_at"], reverse=True)
+    return jsonify(images=image_entries)
 
 
 @app.post("/upload")
@@ -118,6 +150,7 @@ def upload_image():
     safe_original_name = secure_filename(uploaded_file.filename) or "image"
     display_filename = f"{Path(safe_original_name).stem or 'image'}.{extension}"
     storage_filename = f"{uuid4().hex}__{display_filename}"
+    uploaded_at = datetime.now(timezone.utc).timestamp()
     if USE_BLOB_STORAGE:
         try:
             uploaded_blob = blob.put_blob(
@@ -129,12 +162,17 @@ def upload_image():
         except BlobError:
             app.logger.exception("Failed to upload image to Vercel Blob")
             return jsonify(error="Image storage is unavailable. Check the Vercel Blob store configuration."), 503
-        return jsonify(filename=display_filename, url=uploaded_blob.url), 201
+        return jsonify(
+            filename=display_filename,
+            url=uploaded_blob.url,
+            uploaded_at=uploaded_at,
+        ), 201
 
     (IMAGE_DIR / storage_filename).write_bytes(image_data)
     return jsonify(
         filename=display_filename,
         url=f"/images/{storage_filename}",
+        uploaded_at=uploaded_at,
     ), 201
 
 

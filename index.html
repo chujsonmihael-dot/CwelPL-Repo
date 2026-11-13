@@ -20,6 +20,16 @@
         <a class="termsButton" href="terms.html">T&amp;C</a>
     </div>
     <div id="Images" aria-live="polite"></div>
+
+    <div id="imageModal" class="imageModal hidden" aria-hidden="true">
+        <button id="closeModal" class="closeModal" type="button" aria-label="Close image viewer">×</button>
+        <button id="prevImage" class="navModalButton prev" type="button" aria-label="Previous image">‹</button>
+        <div class="imageModalContent">
+            <img id="modalImage" src="" alt="">
+        </div>
+        <button id="nextImage" class="navModalButton next" type="button" aria-label="Next image">›</button>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>
