@@ -20,13 +20,21 @@
         </form>
 
         <p id="adminStatus" role="status" aria-live="polite"></p>
+        <section id="adminReports" hidden>
+            <h2>All reports</h2>
+            <p id="adminReportsError" role="status" hidden></p>
+            <section class="adminReportGroup">
+                <h3>Image reports</h3>
+                <div id="adminImageReportsList" class="adminReportsList"></div>
+            </section>
+            <section class="adminReportGroup">
+                <h3>Comment reports</h3>
+                <div id="adminCommentReportsList" class="adminReportsList"></div>
+            </section>
+        </section>
         <section id="adminPanel" hidden>
             <h2>Uploaded images</h2>
             <div id="adminImages" class="adminImages"></div>
-        </section>
-        <section id="adminReports" hidden>
-            <h2>Image and comment reports</h2>
-            <div id="adminReportsList" class="adminReportsList"></div>
         </section>
         <p><a class="termsButton adminBackLink" href="/">Back to gallery</a></p>
     </main>

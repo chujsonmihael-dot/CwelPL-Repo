@@ -4,7 +4,9 @@ const adminStatus = document.getElementById("adminStatus");
 const adminPanel = document.getElementById("adminPanel");
 const adminImages = document.getElementById("adminImages");
 const adminReports = document.getElementById("adminReports");
-const adminReportsList = document.getElementById("adminReportsList");
+const adminReportsError = document.getElementById("adminReportsError");
+const adminImageReportsList = document.getElementById("adminImageReportsList");
+const adminCommentReportsList = document.getElementById("adminCommentReportsList");
 const logoutButton = document.getElementById("logoutButton");
 let csrfToken = "";
 
@@ -67,12 +69,19 @@ function displayAdminImages(images) {
 }
 
 function displayAdminReports(reports) {
-    adminReportsList.replaceChildren();
+    const imageReports = reports.filter((report) => report.report_type !== "comment");
+    const commentReports = reports.filter((report) => report.report_type === "comment");
+    displayAdminReportGroup(adminImageReportsList, imageReports, "No image reports.");
+    displayAdminReportGroup(adminCommentReportsList, commentReports, "No comment reports.");
+}
+
+function displayAdminReportGroup(reportList, reports, emptyMessageText) {
+    reportList.replaceChildren();
 
     if (reports.length === 0) {
         const emptyMessage = document.createElement("p");
-        emptyMessage.textContent = "No reports have been submitted.";
-        adminReportsList.appendChild(emptyMessage);
+        emptyMessage.textContent = emptyMessageText;
+        reportList.appendChild(emptyMessage);
         return;
     }
 
@@ -147,7 +156,7 @@ function displayAdminReports(reports) {
             card.append(reportedComment);
         }
         card.append(reason, actions);
-        adminReportsList.appendChild(card);
+        reportList.appendChild(card);
     });
 }
 
@@ -155,12 +164,14 @@ async function loadAdminReports() {
     try {
         const result = await readAdminResponse(await fetch("/admin/reports"));
         csrfToken = result.csrf_token;
+        adminReportsError.hidden = true;
+        adminReportsError.textContent = "";
         displayAdminReports(result.reports);
     } catch (error) {
-        adminReportsList.replaceChildren();
-        const message = document.createElement("p");
-        message.textContent = error.message || "Could not load reports.";
-        adminReportsList.appendChild(message);
+        adminImageReportsList.replaceChildren();
+        adminCommentReportsList.replaceChildren();
+        adminReportsError.textContent = error.message || "Could not load reports.";
+        adminReportsError.hidden = false;
     }
 }
 
