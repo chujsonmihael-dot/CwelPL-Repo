@@ -174,6 +174,7 @@ body {
 }
 
 .imageModalContent {
+    --comments-panel-width: min(320px, 32vw);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -181,7 +182,7 @@ body {
     width: 100vw;
     height: 100vh;
     height: 100dvh;
-    padding: 64px 80px 24px;
+    padding: 64px calc(var(--comments-panel-width) + 96px) 24px 80px;
     box-sizing: border-box;
 }
 
@@ -199,7 +200,7 @@ body {
 .reportImageButton {
     position: absolute;
     bottom: 18px;
-    left: 50%;
+    left: 40%;
     transform: translateX(-50%);
     padding: 9px 16px;
     border: 2px solid rgba(255, 255, 255, 0.75);
@@ -208,6 +209,126 @@ body {
     color: #ffffff;
     font: inherit;
     cursor: pointer;
+}
+
+.imageComments {
+    position: absolute;
+    top: 72px;
+    right: 16px;
+    bottom: 72px;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    width: var(--comments-panel-width);
+    min-width: 0;
+    padding: 14px;
+    box-sizing: border-box;
+    background: rgba(35, 35, 35, 0.96);
+    border: 2px solid rgba(255, 255, 255, 0.45);
+    border-radius: var(--panel-radius);
+}
+
+.imageComments[hidden] {
+    display: none;
+}
+
+.imageComments h2 {
+    margin: 0 0 8px;
+    font-size: 20px;
+}
+
+.imageCommentList {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.imageComment {
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.imageCommentHeading,
+.imageCommentContent {
+    margin: 0 0 6px;
+    overflow-wrap: anywhere;
+}
+
+.imageCommentHeading {
+    font-size: 13px;
+    opacity: 0.8;
+}
+
+.imageCommentContent {
+    white-space: pre-wrap;
+}
+
+.reportCommentButton,
+.commentForm button,
+.commentReportForm button {
+    padding: 6px 10px;
+    border: 1px solid #222222;
+    border-radius: var(--panel-radius);
+    background: #e5e5e5;
+    color: #000000;
+    font: inherit;
+    cursor: pointer;
+}
+
+.commentForm {
+    display: grid;
+    gap: 5px;
+    margin-top: 10px;
+}
+
+.commentForm input,
+.commentForm textarea,
+.commentReportForm textarea {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 7px;
+    font: inherit;
+}
+
+.commentForm textarea {
+    min-height: 54px;
+    resize: vertical;
+}
+
+.commentFormFooter,
+.commentReportActions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+#commentLength {
+    font-size: 13px;
+    opacity: 0.8;
+}
+
+#commentStatus,
+.commentReportForm p {
+    min-height: 1em;
+    margin: 2px 0 0;
+    font-size: 13px;
+}
+
+.commentReportForm {
+    display: grid;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.commentReportForm[hidden] {
+    display: none;
+}
+
+.commentReportForm textarea {
+    min-height: 54px;
+    resize: vertical;
 }
 
 .reportImageButton:hover,
@@ -332,12 +453,36 @@ body {
 }
 
 .navModalButton.next {
-    right: 18px;
+    right: calc(min(320px, 32vw) + 32px);
 }
 
 @media (max-width: 600px) {
     .imageModalContent {
-        padding: 64px 56px 20px;
+        flex-direction: column;
+        gap: 6px;
+        padding: 54px 12px 12px;
+    }
+
+    .imageModalContent img {
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: 38dvh;
+    }
+
+    .reportImageButton {
+        position: static;
+        flex: 0 0 auto;
+        transform: none;
+        margin: 0 auto;
+    }
+
+    .imageComments {
+        position: static;
+        flex: 1 1 auto;
+        width: 100%;
+        max-height: 38dvh;
+        min-height: 120px;
+        padding: 10px;
     }
 
     .closeModal {

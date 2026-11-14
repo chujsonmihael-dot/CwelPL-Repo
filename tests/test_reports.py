@@ -78,6 +78,69 @@ class ReportRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 429)
         insert_report.assert_not_called()
 
+    def test_comment_is_saved_without_an_account_and_enforces_length_limit(self):
+        comment = {
+            "id": 8,
+            "image_id": self.image["storage_id"],
+            "author": "Alex",
+            "content": "Nice image",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        with (
+            patch.object(project, "_list_image_entries", return_value=[self.image]),
+            patch.object(project, "_insert_comment", return_value=comment) as insert_comment,
+        ):
+            response = self.client.post(
+                "/comments",
+                json={
+                    "image_id": self.image["storage_id"],
+                    "author": " Alex ",
+                    "content": " Nice image ",
+                },
+            )
+            too_long = self.client.post(
+                "/comments",
+                json={
+                    "image_id": self.image["storage_id"],
+                    "author": "Alex",
+                    "content": "x" * (project.MAX_COMMENT_LENGTH + 1),
+                },
+            )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.get_json()["comment"]["id"], comment["id"])
+        insert_comment.assert_called_once_with(self.image, "Alex", "Nice image")
+        self.assertEqual(too_long.status_code, 400)
+
+    def test_comment_report_is_rate_limited_and_saved_for_admin(self):
+        with (
+            patch.object(project, "_report_client_ip", return_value="192.0.2.1"),
+            patch.object(project, "_consume_report_rate_limit", return_value=True),
+            patch.object(project, "_insert_comment_report", return_value=True) as insert_report,
+        ):
+            response = self.client.post(
+                "/comments/8/report",
+                json={"reason": "This comment is abusive"},
+            )
+
+        self.assertEqual(response.status_code, 201)
+        insert_report.assert_called_once_with(8, "This comment is abusive")
+
+    def test_admin_can_delete_comment_with_csrf(self):
+        with self.client.session_transaction() as admin_session:
+            admin_session["admin_authenticated"] = True
+            admin_session["csrf_token"] = "valid-token"
+
+        self.assertEqual(self.client.delete("/admin/comments/8").status_code, 403)
+        with patch.object(project, "_delete_comment", return_value=True) as delete_comment:
+            response = self.client.delete(
+                "/admin/comments/8",
+                headers={"X-CSRF-Token": "valid-token"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        delete_comment.assert_called_once_with(8)
+
     def test_admin_can_view_and_review_reports_with_csrf(self):
         with patch.object(project, "_list_reports", return_value=[self.report]):
             self.assertEqual(self.client.get("/admin/reports").status_code, 401)

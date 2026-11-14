@@ -27,6 +27,21 @@
         <div class="imageModalContent">
             <img id="modalImage" src="" alt="">
             <button id="reportImageButton" class="reportImageButton" type="button">Report image</button>
+            <aside id="imageComments" class="imageComments" aria-label="Image comments">
+                <h2>Comments <span id="commentCount">(0)</span></h2>
+                <div id="imageCommentList" class="imageCommentList" aria-live="polite"></div>
+                <form id="commentForm" class="commentForm">
+                    <label for="commentAuthor">Name</label>
+                    <input id="commentAuthor" name="author" maxlength="32" required>
+                    <label for="commentContent">Comment</label>
+                    <textarea id="commentContent" name="content" maxlength="150" required></textarea>
+                    <div class="commentFormFooter">
+                        <span id="commentLength">0/150</span>
+                        <button id="submitComment" type="submit">Post comment</button>
+                    </div>
+                    <p id="commentStatus" role="status" aria-live="polite"></p>
+                </form>
+            </aside>
         </div>
         <button id="nextImage" class="navModalButton next" type="button" aria-label="Next image">›</button>
         <section id="reportDialog" class="reportDialog" role="dialog" aria-modal="true" aria-labelledby="reportTitle" hidden>

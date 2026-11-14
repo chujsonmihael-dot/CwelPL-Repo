@@ -86,7 +86,9 @@ function displayAdminReports(reports) {
         preview.loading = "lazy";
 
         const title = document.createElement("h3");
-        title.textContent = `Report #${report.id}: ${report.image_filename}`;
+        title.textContent = report.report_type === "comment"
+            ? `Comment report #${report.id}: ${report.image_filename}`
+            : `Report #${report.id}: ${report.image_filename}`;
 
         const details = document.createElement("p");
         details.textContent =
@@ -96,6 +98,12 @@ function displayAdminReports(reports) {
         const reason = document.createElement("p");
         reason.className = "adminReportReason";
         reason.textContent = report.reason;
+
+        const reportedComment = document.createElement("p");
+        reportedComment.className = "adminReportReason";
+        reportedComment.textContent = report.report_type === "comment"
+            ? `Reported comment by ${report.comment_author}: ${report.comment_content}`
+            : "";
 
         const actions = document.createElement("div");
         actions.className = "adminReportActions";
@@ -114,15 +122,31 @@ function displayAdminReports(reports) {
         deleteButton.addEventListener("click", () => deleteReport(report));
         actions.appendChild(deleteButton);
 
-        const deleteImageButton = document.createElement("button");
-        deleteImageButton.type = "button";
-        deleteImageButton.textContent = "Delete image";
-        deleteImageButton.addEventListener("click", () =>
-            deleteReportedImage(report, deleteImageButton, preview)
-        );
-        actions.appendChild(deleteImageButton);
+        if (report.report_type === "comment") {
+            if (report.comment_exists) {
+                const deleteCommentButton = document.createElement("button");
+                deleteCommentButton.type = "button";
+                deleteCommentButton.textContent = "Delete comment";
+                deleteCommentButton.addEventListener("click", () =>
+                    deleteReportedComment(report, deleteCommentButton, reportedComment)
+                );
+                actions.appendChild(deleteCommentButton);
+            }
+        } else {
+            const deleteImageButton = document.createElement("button");
+            deleteImageButton.type = "button";
+            deleteImageButton.textContent = "Delete image";
+            deleteImageButton.addEventListener("click", () =>
+                deleteReportedImage(report, deleteImageButton, preview)
+            );
+            actions.appendChild(deleteImageButton);
+        }
 
-        card.append(preview, title, details, reason, actions);
+        card.append(preview, title, details);
+        if (report.report_type === "comment") {
+            card.append(reportedComment);
+        }
+        card.append(reason, actions);
         adminReportsList.appendChild(card);
     });
 }
@@ -184,6 +208,33 @@ async function deleteReportedImage(report, button, preview) {
     } catch (error) {
         button.disabled = false;
         adminStatus.textContent = error.message || "Could not delete the image.";
+    }
+}
+
+async function deleteReportedComment(report, button, reportedComment) {
+    if (!window.confirm(`Permanently delete this comment by ${report.comment_author}?`)) {
+        return;
+    }
+
+    button.disabled = true;
+    adminStatus.textContent = `Deleting comment from report #${report.id}...`;
+    try {
+        await readAdminResponse(await fetch(
+            `/admin/comments/${report.comment_id}`,
+            {
+                method: "DELETE",
+                headers: { "X-CSRF-Token": csrfToken },
+            }
+        ));
+        button.textContent = "Comment deleted";
+        const deletedMessage = document.createElement("p");
+        deletedMessage.className = "adminReportImageDeleted";
+        deletedMessage.textContent = "Comment deleted";
+        reportedComment.replaceWith(deletedMessage);
+        adminStatus.textContent = `Comment from report #${report.id} deleted.`;
+    } catch (error) {
+        button.disabled = false;
+        adminStatus.textContent = error.message || "Could not delete the comment.";
     }
 }
 
