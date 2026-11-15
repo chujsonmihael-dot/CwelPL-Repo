@@ -166,5 +166,41 @@ class ReportRouteTests(unittest.TestCase):
         self.assertEqual(reviewed.status_code, 200)
         update.assert_called_once_with(self.report["id"], status="reviewed")
 
+    def test_admin_can_unreview_report_with_csrf(self):
+        with self.client.session_transaction() as admin_session:
+            admin_session["admin_authenticated"] = True
+            admin_session["csrf_token"] = "valid-token"
+
+        self.assertEqual(
+            self.client.post(f"/admin/reports/{self.report['id']}/unreview").status_code,
+            403,
+        )
+        with patch.object(project, "_update_report_fields", return_value=True) as update:
+            response = self.client.post(
+                f"/admin/reports/{self.report['id']}/unreview",
+                headers={"X-CSRF-Token": "valid-token"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        update.assert_called_once_with(self.report["id"], status="open")
+
+    def test_admin_can_delete_report_with_csrf(self):
+        with self.client.session_transaction() as admin_session:
+            admin_session["admin_authenticated"] = True
+            admin_session["csrf_token"] = "valid-token"
+
+        self.assertEqual(
+            self.client.delete(f"/admin/reports/{self.report['id']}").status_code,
+            403,
+        )
+        with patch.object(project, "_delete_report", return_value=True) as delete:
+            response = self.client.delete(
+                f"/admin/reports/{self.report['id']}",
+                headers={"X-CSRF-Token": "valid-token"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        delete.assert_called_once_with(self.report["id"])
+
 if __name__ == "__main__":
     unittest.main()

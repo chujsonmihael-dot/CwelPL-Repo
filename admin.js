@@ -69,8 +69,11 @@ function displayAdminImages(images) {
 }
 
 function displayAdminReports(reports) {
-    const imageReports = reports.filter((report) => report.report_type !== "comment");
-    const commentReports = reports.filter((report) => report.report_type === "comment");
+    const prioritizedReports = [...reports].sort((a, b) =>
+        Number(a.status === "reviewed") - Number(b.status === "reviewed")
+    );
+    const imageReports = prioritizedReports.filter((report) => report.report_type !== "comment");
+    const commentReports = prioritizedReports.filter((report) => report.report_type === "comment");
     displayAdminReportGroup(adminImageReportsList, imageReports, "No image reports.");
     displayAdminReportGroup(adminCommentReportsList, commentReports, "No comment reports.");
 }
@@ -88,6 +91,45 @@ function displayAdminReportGroup(reportList, reports, emptyMessageText) {
     reports.forEach((report) => {
         const card = document.createElement("article");
         card.className = "adminReport";
+        const isReviewed = report.status === "reviewed";
+        if (isReviewed) {
+            card.classList.add("adminReportReviewed");
+        }
+
+        const reason = document.createElement("p");
+        reason.className = "adminReportReason";
+        reason.textContent = report.reason;
+
+        const reportedComment = document.createElement("p");
+        reportedComment.className = "adminReportReason";
+        reportedComment.textContent = report.report_type === "comment"
+            ? `Reported comment by ${report.comment_author}: ${report.comment_content}`
+            : "";
+
+        if (isReviewed) {
+            card.append(reason);
+            if (report.report_type === "comment") {
+                card.append(reportedComment);
+            }
+            const actions = document.createElement("div");
+            actions.className = "adminReportActions";
+
+            const unreviewButton = document.createElement("button");
+            unreviewButton.type = "button";
+            unreviewButton.textContent = "Mark unreviewed";
+            unreviewButton.addEventListener("click", () => unreviewReport(report));
+            actions.appendChild(unreviewButton);
+
+            const deleteButton = document.createElement("button");
+            deleteButton.type = "button";
+            deleteButton.textContent = "Delete report";
+            deleteButton.addEventListener("click", () => deleteReport(report));
+            actions.appendChild(deleteButton);
+
+            card.appendChild(actions);
+            reportList.appendChild(card);
+            return;
+        }
 
         const preview = document.createElement("img");
         preview.src = report.image_url;
@@ -103,16 +145,6 @@ function displayAdminReportGroup(reportList, reports, emptyMessageText) {
         details.textContent =
             `${new Date(report.created_at).toLocaleString()} · ` +
             report.status;
-
-        const reason = document.createElement("p");
-        reason.className = "adminReportReason";
-        reason.textContent = report.reason;
-
-        const reportedComment = document.createElement("p");
-        reportedComment.className = "adminReportReason";
-        reportedComment.textContent = report.report_type === "comment"
-            ? `Reported comment by ${report.comment_author}: ${report.comment_content}`
-            : "";
 
         const actions = document.createElement("div");
         actions.className = "adminReportActions";
@@ -251,6 +283,10 @@ async function deleteReportedComment(report, button, reportedComment) {
 
 function reviewReport(report) {
     return runReportAction(report, "Marking", "/review", "POST");
+}
+
+function unreviewReport(report) {
+    return runReportAction(report, "Marking unreviewed", "/unreview", "POST");
 }
 
 function deleteReport(report) {

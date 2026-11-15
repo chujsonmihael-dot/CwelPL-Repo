@@ -723,6 +723,25 @@ def admin_review_report(report_id):
     return jsonify(success=True)
 
 
+@app.post("/admin/reports/<int:report_id>/unreview")
+def admin_unreview_report(report_id):
+    if not _admin_is_authenticated():
+        return _admin_auth_error()
+    if not _admin_request_is_valid():
+        return jsonify(error="Invalid request token."), 403
+    if not DATABASE_URL:
+        return jsonify(error="Report storage is not configured. Set DATABASE_URL."), 503
+
+    try:
+        updated = _update_report_fields(report_id, status="open")
+    except psycopg.Error:
+        app.logger.exception("Failed to mark report %d as unreviewed", report_id)
+        return jsonify(error="The report could not be updated."), 503
+    if not updated:
+        return jsonify(error="Report not found."), 404
+    return jsonify(success=True)
+
+
 @app.delete("/admin/comments/<int:comment_id>")
 def admin_delete_comment(comment_id):
     if not _admin_is_authenticated():

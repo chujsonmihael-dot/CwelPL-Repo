@@ -690,6 +690,10 @@ body {
     border-radius: var(--panel-radius);
 }
 
+.adminReportReviewed {
+    grid-template-columns: minmax(0, 1fr);
+}
+
 .adminReport img {
     grid-row: span 4;
     width: 100%;
