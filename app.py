@@ -26,6 +26,7 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 IMAGE_DIR = BASE_DIR / "images"
+LIKE_ICON_DIR = BASE_DIR / "Icons"
 USE_BLOB_STORAGE = os.environ.get("VERCEL") == "1"
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -79,6 +80,11 @@ def script():
 @app.get("/admin.js")
 def admin_script():
     return send_from_directory(BASE_DIR, "admin.js")
+
+
+@app.get("/Icons/<path:filename>")
+def like_icon(filename):
+    return send_from_directory(LIKE_ICON_DIR, filename)
 
 
 @app.get("/images/<path:filename>")
@@ -228,6 +234,20 @@ def _ensure_reports_table(connection):
         "CREATE INDEX IF NOT EXISTS cwel_comments_image_created_idx "
         "ON cwel_comments (image_id, created_at, id)"
     )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS cwel_likes (
+            target_type TEXT NOT NULL CHECK (target_type IN ('image', 'comment')),
+            target_id TEXT NOT NULL,
+            ip_hash TEXT NOT NULL,
+            PRIMARY KEY (target_type, target_id, ip_hash)
+        )
+        """
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS cwel_likes_target_idx "
+        "ON cwel_likes (target_type, target_id)"
+    )
 
 
 def _report_to_dict(report):
@@ -366,6 +386,14 @@ def _insert_comment_report(comment_id, reason):
 def _delete_comment(comment_id):
     with psycopg.connect(DATABASE_URL, connect_timeout=5) as connection:
         _ensure_reports_table(connection)
+        connection.execute(
+            "SELECT id FROM cwel_comments WHERE id = %s FOR UPDATE",
+            (comment_id,),
+        )
+        connection.execute(
+            "DELETE FROM cwel_likes WHERE target_type = 'comment' AND target_id = %s",
+            (str(comment_id),),
+        )
         cursor = connection.execute(
             "DELETE FROM cwel_comments WHERE id = %s",
             (comment_id,),
@@ -409,6 +437,93 @@ def _report_client_ip():
         return str(ipaddress.ip_address(client_ip))
     except (TypeError, ValueError):
         return None
+
+
+def _like_ip_hash():
+    secret_key = app.config["SECRET_KEY"]
+    if not secret_key:
+        raise ValueError("FLASK_SECRET_KEY is required to store likes.")
+    client_ip = _report_client_ip()
+    if client_ip is None:
+        return None
+    return hmac.new(
+        secret_key.encode("utf-8"),
+        b"likes:" + client_ip.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _list_like_states(image_ids, ip_hash):
+    with psycopg.connect(
+        DATABASE_URL,
+        connect_timeout=5,
+        row_factory=dict_row,
+    ) as connection:
+        _ensure_reports_table(connection)
+        states = connection.execute(
+            """
+            SELECT likes.target_type, likes.target_id, COUNT(*) AS count,
+                   BOOL_OR(likes.ip_hash = %s) AS liked
+            FROM cwel_likes AS likes
+            WHERE (
+                likes.target_type = 'image'
+                AND likes.target_id = ANY(%s)
+            ) OR (
+                likes.target_type = 'comment'
+                AND likes.target_id IN (
+                    SELECT comments.id::text
+                    FROM cwel_comments AS comments
+                    WHERE comments.image_id = ANY(%s)
+                )
+            )
+            GROUP BY likes.target_type, likes.target_id
+            """,
+            (ip_hash, image_ids, image_ids),
+        ).fetchall()
+    return states
+
+
+def _change_like(target_type, target_id, ip_hash, liked):
+    with psycopg.connect(
+        DATABASE_URL,
+        connect_timeout=5,
+        row_factory=dict_row,
+    ) as connection:
+        _ensure_reports_table(connection)
+        if target_type == "comment":
+            comment = connection.execute(
+                "SELECT id FROM cwel_comments WHERE id = %s FOR UPDATE",
+                (target_id,),
+            ).fetchone()
+            if comment is None:
+                return None
+
+        if liked:
+            connection.execute(
+                """
+                INSERT INTO cwel_likes (target_type, target_id, ip_hash)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (target_type, target_id, ip_hash) DO NOTHING
+                """,
+                (target_type, target_id, ip_hash),
+            )
+        else:
+            connection.execute(
+                """
+                DELETE FROM cwel_likes
+                WHERE target_type = %s AND target_id = %s AND ip_hash = %s
+                """,
+                (target_type, target_id, ip_hash),
+            )
+        count = connection.execute(
+            """
+            SELECT COUNT(*) AS count
+            FROM cwel_likes
+            WHERE target_type = %s AND target_id = %s
+            """,
+            (target_type, target_id),
+        ).fetchone()["count"]
+    return count
 
 
 def _consume_report_rate_limit(client_ip):
@@ -460,6 +575,96 @@ def list_uploaded_images():
         app.logger.exception("Failed to list images from Vercel Blob")
         return jsonify(error="Image storage is unavailable. Check the Vercel Blob store configuration."), 503
     return jsonify(images=entries)
+
+
+@app.post("/likes/state")
+def list_likes():
+    if not DATABASE_URL:
+        return jsonify(error="Likes are not configured. Please try again later."), 503
+
+    like_data = request.get_json(silent=True)
+    image_ids = like_data.get("image_ids") if isinstance(like_data, dict) else None
+    if (
+        not isinstance(image_ids, list)
+        or not image_ids
+        or len(image_ids) > 5000
+        or any(
+            not isinstance(image_id, str) or not image_id or len(image_id) > 512
+            for image_id in image_ids
+        )
+    ):
+        return jsonify(error="Choose one or more valid images to load likes."), 400
+
+    try:
+        ip_hash = _like_ip_hash()
+        if ip_hash is None:
+            return jsonify(error="Your like could not be verified. Please try again later."), 503
+        likes = _list_like_states(image_ids, ip_hash)
+    except (psycopg.Error, ValueError):
+        app.logger.exception("Failed to load like counts")
+        return jsonify(error="Likes are temporarily unavailable."), 503
+    return jsonify(likes=likes)
+
+
+@app.route("/likes", methods=["POST", "DELETE"])
+def change_like():
+    if not DATABASE_URL:
+        return jsonify(error="Likes are not configured. Please try again later."), 503
+
+    like_data = request.get_json(silent=True)
+    if not isinstance(like_data, dict):
+        return jsonify(error="Submit a valid like action."), 400
+    target_type = like_data.get("target_type")
+    target_id = like_data.get("target_id")
+    if (
+        not isinstance(target_type, str)
+        or target_type not in {"image", "comment"}
+        or not isinstance(target_id, str)
+    ):
+        return jsonify(error="Choose a valid image or comment to like."), 400
+
+    if target_type == "image":
+        if not target_id or len(target_id) > 512:
+            return jsonify(error="Choose a valid image to like."), 400
+        try:
+            image_exists = any(
+                image["storage_id"] == target_id
+                for image in _list_image_entries()
+            )
+        except BlobError:
+            app.logger.exception("Failed to verify image for like")
+            return jsonify(error="Image storage is unavailable. Please try again later."), 503
+        if not image_exists:
+            return jsonify(error="That image could not be found."), 404
+    elif (
+        not target_id.isascii()
+        or not target_id.isdigit()
+        or len(target_id) > 19
+    ):
+        return jsonify(error="Choose a valid comment to like."), 400
+    else:
+        comment_id = int(target_id)
+        if comment_id < 1 or comment_id > 9223372036854775807:
+            return jsonify(error="Choose a valid comment to like."), 400
+        target_id = str(comment_id)
+
+    try:
+        ip_hash = _like_ip_hash()
+        if ip_hash is None:
+            return jsonify(error="Your like could not be verified. Please try again later."), 503
+        liked = request.method == "POST"
+        count = _change_like(target_type, target_id, ip_hash, liked)
+    except (psycopg.Error, ValueError):
+        app.logger.exception("Failed to update a like")
+        return jsonify(error="The like could not be updated. Please try again later."), 503
+    if count is None:
+        return jsonify(error="That comment could not be found."), 404
+    return jsonify(
+        target_type=target_type,
+        target_id=target_id,
+        count=count,
+        liked=liked,
+    )
 
 
 @app.get("/comments")
@@ -841,8 +1046,13 @@ def file_too_large(_error):
 
 
 @app.after_request
-def prevent_admin_response_caching(response):
-    if request.path == "/admin" or request.path.startswith("/admin/"):
+def prevent_sensitive_response_caching(response):
+    if (
+        request.path == "/likes"
+        or request.path == "/likes/state"
+        or request.path == "/admin"
+        or request.path.startswith("/admin/")
+    ):
         response.headers["Cache-Control"] = "no-store"
     return response
 

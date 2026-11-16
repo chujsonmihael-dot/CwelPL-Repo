@@ -1,5 +1,6 @@
 const modal = document.getElementById("imageModal");
 const modalImage = document.getElementById("modalImage");
+const imageModalActions = document.getElementById("imageModalActions");
 const closeModalButton = document.getElementById("closeModal");
 const prevImageButton = document.getElementById("prevImage");
 const nextImageButton = document.getElementById("nextImage");
@@ -22,6 +23,11 @@ const submitReportButton = document.getElementById("submitReport");
 let activeImageFigure = null;
 let activeImageIndex = -1;
 let activeImage = null;
+const likeStates = new Map();
+const likeControls = new Map();
+const loadedLikeImageIds = new Set();
+const likeLoadErrors = new Map();
+let likesLoadPromise = Promise.resolve();
 
 function getGalleryImages() {
     return Array.from(document.querySelectorAll(".imageItem"));
@@ -67,8 +73,18 @@ function openImageModal(image, figure) {
     activeImageIndex = getGalleryImages().indexOf(figure);
     activeImage = image;
 
+    unregisterLikeControlsWithin(imageModalActions);
+    imageModalActions.replaceChildren();
+    if (image.storage_id) {
+        imageModalActions.appendChild(
+            createLikeControls("image", image.storage_id, image.storage_id).container
+        );
+    }
+    imageModalActions.appendChild(reportImageButton);
+
     modalImage.src = image.url;
     modalImage.alt = image.filename;
+    unregisterLikeControlsWithin(imageCommentList);
     imageCommentList.replaceChildren();
     commentContent.value = "";
     commentLength.textContent = "0/150";
@@ -129,6 +145,7 @@ function closeReportDialog() {
 }
 
 function displayImageComments(comments) {
+    unregisterLikeControlsWithin(imageCommentList);
     imageCommentList.replaceChildren();
     document.getElementById("commentCount").textContent = `(${comments.length})`;
     if (!comments.length) {
@@ -150,6 +167,12 @@ function displayImageComments(comments) {
         const content = document.createElement("p");
         content.className = "imageCommentContent";
         content.textContent = comment.content;
+
+        const likeControlsForComment = createLikeControls(
+            "comment",
+            String(comment.id),
+            comment.image_id
+        );
 
         const reportButton = document.createElement("button");
         reportButton.type = "button";
@@ -208,9 +231,178 @@ function displayImageComments(comments) {
             }
         });
 
-        item.append(heading, content, reportButton, reportForm);
+        item.append(heading, content, likeControlsForComment.container, reportButton, reportForm);
         imageCommentList.appendChild(item);
     });
+}
+
+function likeStateKey(targetType, targetId) {
+    return `${targetType}:${targetId}`;
+}
+
+function unregisterLikeControlsWithin(container) {
+    likeControls.forEach((controls, key) => {
+        const remainingControls = controls.filter(
+            (control) => !container.contains(control.button)
+        );
+        if (remainingControls.length > 0) {
+            likeControls.set(key, remainingControls);
+        } else {
+            likeControls.delete(key);
+        }
+    });
+}
+
+function updateLikeControl(control, state) {
+    control.button.disabled = false;
+    control.icon.src = state.liked
+        ? "/Icons/LikeIcon2.png"
+        : "/Icons/LikeIcon1.png";
+    control.button.setAttribute("aria-label", state.liked ? "Unlike" : "Like");
+    control.button.setAttribute("aria-pressed", String(state.liked));
+    control.count.textContent = String(state.count);
+    control.status.textContent = "";
+}
+
+function createLikeControls(targetType, targetId, imageId) {
+    const container = document.createElement("div");
+    container.className = "likeControls";
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "likeButton";
+    button.disabled = !loadedLikeImageIds.has(imageId);
+
+    const icon = document.createElement("img");
+    icon.src = "/Icons/LikeIcon1.png";
+    icon.alt = "";
+    icon.setAttribute("aria-hidden", "true");
+    button.appendChild(icon);
+    button.setAttribute("aria-label", "Like");
+
+    const count = document.createElement("span");
+    count.className = "likeCount";
+
+    const status = document.createElement("span");
+    status.className = "likeStatus";
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
+
+    const control = { button, icon, count, status, imageId };
+    const key = likeStateKey(targetType, targetId);
+    const controls = likeControls.get(key) || [];
+    controls.push(control);
+    likeControls.set(key, controls);
+    button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        toggleLike(targetType, targetId, control);
+    });
+
+    container.append(button, count, status);
+    const state = likeStates.get(key) || { count: 0, liked: false };
+    if (loadedLikeImageIds.has(imageId)) {
+        updateLikeControl(control, state);
+    } else if (likeLoadErrors.has(imageId)) {
+        status.textContent = likeLoadErrors.get(imageId);
+    } else {
+        count.textContent = "0";
+        button.setAttribute("aria-pressed", "false");
+    }
+    return { container, control };
+}
+
+async function loadLikesForImages(images) {
+    if (!images.length) {
+        return;
+    }
+
+    try {
+        const response = await fetch("/likes/state", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                image_ids: images.map((image) => image.storage_id),
+            }),
+        });
+        const result = await readJsonResponse(response, "/likes/state");
+        if (!response.ok) {
+            throw new Error(result.error || "Likes could not be loaded.");
+        }
+
+        result.likes.forEach((like) => {
+            likeStates.set(likeStateKey(like.target_type, like.target_id), {
+                count: like.count,
+                liked: like.liked,
+            });
+        });
+        images.forEach((image) => {
+            loadedLikeImageIds.add(image.storage_id);
+            likeLoadErrors.delete(image.storage_id);
+            const imageKey = likeStateKey("image", image.storage_id);
+            if (!likeStates.has(imageKey)) {
+                likeStates.set(imageKey, { count: 0, liked: false });
+            }
+            likeControls.forEach((controls, key) => {
+                controls.forEach((control) => {
+                    if (control.imageId === image.storage_id) {
+                        updateLikeControl(
+                            control,
+                            likeStates.get(key) || { count: 0, liked: false }
+                        );
+                    }
+                });
+            });
+        });
+    } catch (error) {
+        const message = error.message || "Likes could not be loaded.";
+        images.forEach((image) => {
+            likeLoadErrors.set(image.storage_id, message);
+            likeControls.forEach((controls) => {
+                controls.forEach((control) => {
+                    if (control.imageId === image.storage_id) {
+                        control.button.disabled = true;
+                        control.status.textContent = message;
+                    }
+                });
+            });
+        });
+    }
+}
+
+async function toggleLike(targetType, targetId, control) {
+    const key = likeStateKey(targetType, targetId);
+    const currentState = likeStates.get(key) || { count: 0, liked: false };
+    const controls = likeControls.get(key) || [control];
+    controls.forEach((likeControl) => {
+        likeControl.button.disabled = true;
+        likeControl.status.textContent = "Updating...";
+    });
+    try {
+        const response = await fetch("/likes", {
+            method: currentState.liked ? "DELETE" : "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ target_type: targetType, target_id: targetId }),
+        });
+        const result = await readJsonResponse(response, "/likes");
+        if (!response.ok) {
+            throw new Error(result.error || "The like could not be updated.");
+        }
+        if (!Number.isInteger(result.count) || typeof result.liked !== "boolean") {
+            throw new Error("The like response was invalid.");
+        }
+
+        const state = { count: result.count, liked: result.liked };
+        likeStates.set(key, state);
+        (likeControls.get(key) || [control]).forEach((likeControl) =>
+            updateLikeControl(likeControl, state)
+        );
+    } catch (error) {
+        (likeControls.get(key) || [control]).forEach((likeControl) => {
+            likeControl.button.disabled = false;
+            likeControl.status.textContent =
+                error.message || "The like could not be updated.";
+        });
+    }
 }
 
 async function loadImageComments(image) {
@@ -222,6 +414,7 @@ async function loadImageComments(image) {
         if (!response.ok) {
             throw new Error(result.error || "Comments could not be loaded.");
         }
+        await likesLoadPromise;
         if (activeImage?.storage_id === image.storage_id) {
             displayImageComments(result.comments);
         }
@@ -264,9 +457,22 @@ function displayImage(image, prepend = false) {
     const caption = document.createElement("figcaption");
     caption.textContent = image.filename;
 
-    figure.append(img, caption);
-    figure.addEventListener("click", () => openImageModal(image, figure));
+    const likeControlsForImage = createLikeControls(
+        "image",
+        image.storage_id || "",
+        image.storage_id || ""
+    );
+
+    figure.append(img, caption, likeControlsForImage.container);
+    figure.addEventListener("click", (event) => {
+        if (!event.target.closest(".likeControls")) {
+            openImageModal(image, figure);
+        }
+    });
     figure.addEventListener("keydown", (event) => {
+        if (event.target.closest(".likeButton")) {
+            return;
+        }
         if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
             openImageModal(image, figure);
@@ -352,6 +558,8 @@ async function loadUploadedImages() {
         );
 
         images.forEach((image) => displayImage(image));
+        likesLoadPromise = loadLikesForImages(images);
+        await likesLoadPromise;
     } catch (error) {
         status.textContent = error.message || "Could not load saved images.";
     }
@@ -390,6 +598,8 @@ async function uploadImage() {
         }
 
         displayImage(result, true);
+        likesLoadPromise = loadLikesForImages([result]);
+        await likesLoadPromise;
         status.textContent = "Image uploaded successfully.";
         input.value = "";
         document.getElementById("selectedFileName").textContent = "No file chosen";

@@ -37,6 +37,17 @@
     text-align: center;
 }
 
+.imageItem .likeControls {
+    justify-content: center;
+}
+
+.likeControls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
 body.modal-open .imageItem {
     opacity: 0.35;
     filter: saturate(0.6) contrast(0.92);
@@ -197,11 +208,19 @@ body {
     background: rgba(255, 255, 255, 0.05);
 }
 
-.reportImageButton {
+.imageModalActions {
     position: absolute;
     bottom: 18px;
     left: 40%;
     transform: translateX(-50%);
+    z-index: 4;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.reportImageButton {
     padding: 9px 16px;
     border: 2px solid rgba(255, 255, 255, 0.75);
     border-radius: var(--panel-radius);
@@ -209,6 +228,14 @@ body {
     color: #ffffff;
     font: inherit;
     cursor: pointer;
+}
+
+.imageModalActions .likeButton img {
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: none;
+    background: none;
 }
 
 .imageComments {
@@ -263,6 +290,7 @@ body {
     white-space: pre-wrap;
 }
 
+.likeButton,
 .reportCommentButton,
 .commentForm button,
 .commentReportForm button {
@@ -273,6 +301,39 @@ body {
     color: #000000;
     font: inherit;
     cursor: pointer;
+}
+
+.likeButton[aria-pressed="true"] {
+    background: #c9e7c9;
+}
+
+.likeButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 4px;
+}
+
+.likeButton img {
+    display: block;
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+}
+
+.likeButton:disabled {
+    cursor: wait;
+    opacity: 0.65;
+}
+
+.likeStatus {
+    overflow-wrap: anywhere;
+}
+
+.likeStatus:empty {
+    display: none;
 }
 
 .commentForm {
@@ -481,7 +542,7 @@ body {
         max-height: 78dvh;
     }
 
-    .reportImageButton {
+    .imageModalActions {
         position: static;
         flex: 0 0 auto;
         transform: none;
