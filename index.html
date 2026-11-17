@@ -17,6 +17,11 @@
             <button id="uploadButton" type="button" onclick="uploadImage()">Upload</button>
             <p id="uploadStatus" role="status"></p>
         </div>
+        <div id="imageSortControls" class="imageSortControls" role="group" aria-label="Sort images">
+            <button class="imageSortOption" type="button" data-sort-mode="latest" aria-pressed="true" disabled>Latest</button>
+            <button class="imageSortOption" type="button" data-sort-mode="liked" aria-pressed="false" disabled>Liked</button>
+            <button class="imageSortOption" type="button" data-sort-mode="random" aria-pressed="false" disabled>Random</button>
+        </div>
         <a class="termsButton" href="terms.html">T&amp;C</a>
     </div>
     <div id="Images" aria-live="polite"></div>

@@ -20,6 +20,10 @@ const reportFilename = document.getElementById("reportFilename");
 const reportReason = document.getElementById("reportReason");
 const reportStatus = document.getElementById("reportStatus");
 const submitReportButton = document.getElementById("submitReport");
+const imageSortControls = document.getElementById("imageSortControls");
+const imageSortButtons = Array.from(
+    imageSortControls.querySelectorAll(".imageSortOption")
+);
 let activeImageFigure = null;
 let activeImageIndex = -1;
 let activeImage = null;
@@ -28,9 +32,50 @@ const likeControls = new Map();
 const loadedLikeImageIds = new Set();
 const likeLoadErrors = new Map();
 let likesLoadPromise = Promise.resolve();
+const imageSortModes = ["latest", "liked", "random"];
+let imageSortMode = "latest";
 
 function getGalleryImages() {
     return Array.from(document.querySelectorAll(".imageItem"));
+}
+
+function sortGalleryImages() {
+    const images = getGalleryImages();
+    if (imageSortMode === "liked") {
+        images.sort((a, b) => {
+            const aLikes = likeStates.get(likeStateKey("image", a.dataset.storageId))?.count || 0;
+            const bLikes = likeStates.get(likeStateKey("image", b.dataset.storageId))?.count || 0;
+            return bLikes - aLikes ||
+                Number(b.dataset.uploadedAt) - Number(a.dataset.uploadedAt);
+        });
+    } else if (imageSortMode === "random") {
+        for (let index = images.length - 1; index > 0; index -= 1) {
+            const swapIndex = Math.floor(Math.random() * (index + 1));
+            [images[index], images[swapIndex]] = [images[swapIndex], images[index]];
+        }
+    } else {
+        images.sort(
+            (a, b) => Number(b.dataset.uploadedAt) - Number(a.dataset.uploadedAt)
+        );
+    }
+
+    const gallery = document.getElementById("Images");
+    images.forEach((image) => gallery.appendChild(image));
+    if (activeImageFigure) {
+        activeImageIndex = images.indexOf(activeImageFigure);
+    }
+}
+
+function setImageSortMode(mode) {
+    if (!imageSortModes.includes(mode)) {
+        return;
+    }
+
+    imageSortMode = mode;
+    imageSortButtons.forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.sortMode === mode));
+    });
+    sortGalleryImages();
 }
 
 function showImageAtIndex(index) {
@@ -396,6 +441,9 @@ async function toggleLike(targetType, targetId, control) {
         (likeControls.get(key) || [control]).forEach((likeControl) =>
             updateLikeControl(likeControl, state)
         );
+        if (targetType === "image" && imageSortMode === "liked") {
+            sortGalleryImages();
+        }
     } catch (error) {
         (likeControls.get(key) || [control]).forEach((likeControl) => {
             likeControl.button.disabled = false;
@@ -449,6 +497,7 @@ function displayImage(image, prepend = false) {
     figure.className = "imageItem";
     figure.tabIndex = 0;
     figure.dataset.storageId = image.storage_id || "";
+    figure.dataset.uploadedAt = String(getImageTimestamp(image));
 
     const img = document.createElement("img");
     img.src = image.url;
@@ -560,6 +609,10 @@ async function loadUploadedImages() {
         images.forEach((image) => displayImage(image));
         likesLoadPromise = loadLikesForImages(images);
         await likesLoadPromise;
+        sortGalleryImages();
+        imageSortButtons.forEach((button) => {
+            button.disabled = false;
+        });
     } catch (error) {
         status.textContent = error.message || "Could not load saved images.";
     }
@@ -600,6 +653,7 @@ async function uploadImage() {
         displayImage(result, true);
         likesLoadPromise = loadLikesForImages([result]);
         await likesLoadPromise;
+        sortGalleryImages();
         status.textContent = "Image uploaded successfully.";
         input.value = "";
         document.getElementById("selectedFileName").textContent = "No file chosen";
@@ -617,6 +671,9 @@ document.getElementById("input").addEventListener("change", (event) => {
 });
 
 reportImageButton.addEventListener("click", openReportDialog);
+imageSortButtons.forEach((button) => {
+    button.addEventListener("click", () => setImageSortMode(button.dataset.sortMode));
+});
 commentContent.addEventListener("input", () => {
     commentLength.textContent = `${commentContent.value.length}/150`;
 });

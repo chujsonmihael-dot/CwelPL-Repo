@@ -607,6 +607,50 @@ body {
     border: 3px solid #222222;
 }
 
+.imageSortControls {
+    display: flex;
+    align-self: center;
+    flex: 0 0 auto;
+    overflow: hidden;
+    border: 3px solid #222222;
+    border-radius: var(--panel-radius);
+    background-color: #4a4a4a;
+}
+
+.imageSortOption {
+    padding: 8px 12px;
+    border: 0;
+    background: transparent;
+    color: #ffffff;
+    font: inherit;
+    cursor: pointer;
+}
+
+.imageSortOption + .imageSortOption {
+    border-left: 2px solid #222222;
+}
+
+.imageSortOption[aria-pressed="true"] {
+    background: #e5e5e5;
+    color: #000000;
+    font-weight: 700;
+}
+
+.imageSortOption:not(:disabled):hover,
+.imageSortOption:focus-visible {
+    box-shadow: inset 0 0 0 2px #ffffff;
+}
+
+.imageSortOption[aria-pressed="true"]:not(:disabled):hover,
+.imageSortOption[aria-pressed="true"]:focus-visible {
+    box-shadow: inset 0 0 0 2px #222222;
+}
+
+.imageSortOption:disabled {
+    cursor: wait;
+    opacity: 0.7;
+}
+
 .termsButton:hover,
 .termsButton:focus-visible {
     background-color: #5a5a5a;
