@@ -24,6 +24,7 @@ const imageSortControls = document.getElementById("imageSortControls");
 const imageSortButtons = Array.from(
     imageSortControls.querySelectorAll(".imageSortOption")
 );
+const refreshImagesButton = document.getElementById("refreshImagesButton");
 let activeImageFigure = null;
 let activeImageIndex = -1;
 let activeImage = null;
@@ -615,6 +616,50 @@ async function loadUploadedImages() {
         });
     } catch (error) {
         status.textContent = error.message || "Could not load saved images.";
+    } finally {
+        refreshImagesButton.disabled = false;
+    }
+}
+
+async function refreshUploadedImages() {
+    const status = document.getElementById("uploadStatus");
+    refreshImagesButton.disabled = true;
+    refreshImagesButton.classList.add("isRefreshing");
+    status.textContent = "Refreshing images...";
+
+    try {
+        const response = await fetch("/images", { cache: "no-store" });
+        const result = await readJsonResponse(response, "/images");
+        if (!response.ok) {
+            throw new Error(result.error || "Saved images could not be refreshed.");
+        }
+        if (!Array.isArray(result.images)) {
+            throw new Error("The image refresh response was invalid.");
+        }
+
+        const existingIds = new Set(
+            getGalleryImages().map((figure) => figure.dataset.storageId)
+        );
+        result.images.forEach((image) => {
+            if (!image.storage_id || existingIds.has(image.storage_id)) {
+                return;
+            }
+            displayImage(image);
+            existingIds.add(image.storage_id);
+        });
+
+        likesLoadPromise = loadLikesForImages(result.images);
+        await likesLoadPromise;
+        sortGalleryImages();
+        imageSortButtons.forEach((button) => {
+            button.disabled = false;
+        });
+        status.textContent = "Images refreshed.";
+    } catch (error) {
+        status.textContent = error.message || "Could not refresh images.";
+    } finally {
+        refreshImagesButton.disabled = false;
+        refreshImagesButton.classList.remove("isRefreshing");
     }
 }
 
@@ -671,6 +716,7 @@ document.getElementById("input").addEventListener("change", (event) => {
 });
 
 reportImageButton.addEventListener("click", openReportDialog);
+refreshImagesButton.addEventListener("click", refreshUploadedImages);
 imageSortButtons.forEach((button) => {
     button.addEventListener("click", () => setImageSortMode(button.dataset.sortMode));
 });
