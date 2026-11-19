@@ -8,7 +8,8 @@ from pathlib import Path
 from uuid import uuid4
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, request, send_from_directory, session
+from flask import Flask, g, jsonify, request, send_from_directory, session
+from itsdangerous import BadSignature, URLSafeSerializer
 import psycopg
 from psycopg.rows import dict_row
 from vercel.blob import sync as blob
@@ -34,6 +35,8 @@ MAX_REPORT_LENGTH = 5000
 MAX_REPORTS_PER_HOUR = 5
 MAX_COMMENT_NAME_LENGTH = 32
 MAX_COMMENT_LENGTH = 150
+LIKE_VOTER_COOKIE = "cwel_like_voter"
+LIKE_VOTER_COOKIE_MAX_AGE = 60 * 60 * 24 * 365
 app.config["SESSION_COOKIE_SECURE"] = USE_BLOB_STORAGE
 if not USE_BLOB_STORAGE:
     IMAGE_DIR.mkdir(exist_ok=True)
@@ -239,9 +242,28 @@ def _ensure_reports_table(connection):
         CREATE TABLE IF NOT EXISTS cwel_likes (
             target_type TEXT NOT NULL CHECK (target_type IN ('image', 'comment')),
             target_id TEXT NOT NULL,
-            ip_hash TEXT NOT NULL,
-            PRIMARY KEY (target_type, target_id, ip_hash)
+            voter_hash TEXT NOT NULL,
+            PRIMARY KEY (target_type, target_id, voter_hash)
         )
+        """
+    )
+    connection.execute(
+        """
+        DO $$
+        BEGIN
+            ALTER TABLE cwel_likes RENAME COLUMN ip_hash TO voter_hash;
+        EXCEPTION WHEN undefined_column THEN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = current_schema()
+                  AND table_name = 'cwel_likes'
+                  AND column_name = 'voter_hash'
+            ) THEN
+                RAISE;
+            END IF;
+        END;
+        $$
         """
     )
     connection.execute(
@@ -439,21 +461,59 @@ def _report_client_ip():
         return None
 
 
-def _like_ip_hash():
+@app.before_request
+def load_like_voter_cookie():
     secret_key = app.config["SECRET_KEY"]
+    g.like_voter_cookie = None
+    g.like_voter_id = None
     if not secret_key:
+        return
+
+    serializer = URLSafeSerializer(secret_key, salt="cwel-like-voter")
+    signed_voter_id = request.cookies.get(LIKE_VOTER_COOKIE)
+    if signed_voter_id:
+        try:
+            voter_id = serializer.loads(signed_voter_id)
+        except BadSignature:
+            voter_id = None
+        if isinstance(voter_id, str) and len(voter_id) == 43:
+            g.like_voter_id = voter_id
+            return
+
+    voter_id = secrets.token_urlsafe(32)
+    g.like_voter_id = voter_id
+    g.like_voter_cookie = serializer.dumps(voter_id)
+
+
+@app.after_request
+def persist_like_voter_cookie(response):
+    signed_voter_id = getattr(g, "like_voter_cookie", None)
+    if signed_voter_id:
+        response.set_cookie(
+            LIKE_VOTER_COOKIE,
+            signed_voter_id,
+            max_age=LIKE_VOTER_COOKIE_MAX_AGE,
+            secure=USE_BLOB_STORAGE,
+            httponly=True,
+            samesite="Lax",
+            path="/",
+        )
+    return response
+
+
+def _like_voter_hash():
+    secret_key = app.config["SECRET_KEY"]
+    voter_id = getattr(g, "like_voter_id", None)
+    if not secret_key or not voter_id:
         raise ValueError("FLASK_SECRET_KEY is required to store likes.")
-    client_ip = _report_client_ip()
-    if client_ip is None:
-        return None
     return hmac.new(
         secret_key.encode("utf-8"),
-        b"likes:" + client_ip.encode("utf-8"),
+        b"likes:browser:" + voter_id.encode("utf-8"),
         hashlib.sha256,
     ).hexdigest()
 
 
-def _list_like_states(image_ids, ip_hash):
+def _list_like_states(image_ids, voter_hash):
     with psycopg.connect(
         DATABASE_URL,
         connect_timeout=5,
@@ -463,7 +523,7 @@ def _list_like_states(image_ids, ip_hash):
         states = connection.execute(
             """
             SELECT likes.target_type, likes.target_id, COUNT(*) AS count,
-                   BOOL_OR(likes.ip_hash = %s) AS liked
+                   BOOL_OR(likes.voter_hash = %s) AS liked
             FROM cwel_likes AS likes
             WHERE (
                 likes.target_type = 'image'
@@ -478,12 +538,12 @@ def _list_like_states(image_ids, ip_hash):
             )
             GROUP BY likes.target_type, likes.target_id
             """,
-            (ip_hash, image_ids, image_ids),
+            (voter_hash, image_ids, image_ids),
         ).fetchall()
     return states
 
 
-def _change_like(target_type, target_id, ip_hash, liked):
+def _change_like(target_type, target_id, voter_hash, liked):
     with psycopg.connect(
         DATABASE_URL,
         connect_timeout=5,
@@ -501,19 +561,19 @@ def _change_like(target_type, target_id, ip_hash, liked):
         if liked:
             connection.execute(
                 """
-                INSERT INTO cwel_likes (target_type, target_id, ip_hash)
+                INSERT INTO cwel_likes (target_type, target_id, voter_hash)
                 VALUES (%s, %s, %s)
-                ON CONFLICT (target_type, target_id, ip_hash) DO NOTHING
+                ON CONFLICT (target_type, target_id, voter_hash) DO NOTHING
                 """,
-                (target_type, target_id, ip_hash),
+                (target_type, target_id, voter_hash),
             )
         else:
             connection.execute(
                 """
                 DELETE FROM cwel_likes
-                WHERE target_type = %s AND target_id = %s AND ip_hash = %s
+                WHERE target_type = %s AND target_id = %s AND voter_hash = %s
                 """,
-                (target_type, target_id, ip_hash),
+                (target_type, target_id, voter_hash),
             )
         count = connection.execute(
             """
@@ -596,10 +656,8 @@ def list_likes():
         return jsonify(error="Choose one or more valid images to load likes."), 400
 
     try:
-        ip_hash = _like_ip_hash()
-        if ip_hash is None:
-            return jsonify(error="Your like could not be verified. Please try again later."), 503
-        likes = _list_like_states(image_ids, ip_hash)
+        voter_hash = _like_voter_hash()
+        likes = _list_like_states(image_ids, voter_hash)
     except (psycopg.Error, ValueError):
         app.logger.exception("Failed to load like counts")
         return jsonify(error="Likes are temporarily unavailable."), 503
@@ -649,11 +707,9 @@ def change_like():
         target_id = str(comment_id)
 
     try:
-        ip_hash = _like_ip_hash()
-        if ip_hash is None:
-            return jsonify(error="Your like could not be verified. Please try again later."), 503
+        voter_hash = _like_voter_hash()
         liked = request.method == "POST"
-        count = _change_like(target_type, target_id, ip_hash, liked)
+        count = _change_like(target_type, target_id, voter_hash, liked)
     except (psycopg.Error, ValueError):
         app.logger.exception("Failed to update a like")
         return jsonify(error="The like could not be updated. Please try again later."), 503

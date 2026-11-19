@@ -1,5 +1,3 @@
-import hashlib
-import hmac
 import unittest
 from unittest.mock import patch
 
@@ -23,17 +21,48 @@ class LikeRouteTests(unittest.TestCase):
             "storage_id": "sample-id__sample.png",
         }
 
-    def test_like_ip_hash_uses_a_keyed_hash(self):
-        with patch.object(project, "_report_client_ip", return_value="192.0.2.1"):
-            result = project._like_ip_hash()
+    def test_like_cookie_identity_survives_ip_changes_and_differs_by_browser(self):
+        image_ids = [self.image["storage_id"]]
+        with patch.object(project, "_list_like_states", return_value=[]) as load_likes:
+            self.client.environ_base["REMOTE_ADDR"] = "192.0.2.1"
+            first_response = self.client.post(
+                "/likes/state",
+                json={"image_ids": image_ids},
+            )
+            first_voter_hash = load_likes.call_args.args[1]
 
-        expected = hmac.new(
-            b"test-secret",
-            b"likes:192.0.2.1",
-            hashlib.sha256,
-        ).hexdigest()
-        self.assertEqual(result, expected)
-        self.assertNotEqual(result, "192.0.2.1")
+            self.client.environ_base["REMOTE_ADDR"] = "198.51.100.7"
+            second_response = self.client.post(
+                "/likes/state",
+                json={"image_ids": image_ids},
+            )
+            second_voter_hash = load_likes.call_args.args[1]
+
+            other_browser = project.app.test_client()
+            other_browser_response = other_browser.post(
+                "/likes/state",
+                json={"image_ids": image_ids},
+            )
+            other_voter_hash = load_likes.call_args.args[1]
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(second_response.status_code, 200)
+        self.assertEqual(first_voter_hash, second_voter_hash)
+        self.assertNotEqual(first_voter_hash, other_voter_hash)
+        self.assertTrue(
+            any(
+                header.startswith(f"{project.LIKE_VOTER_COOKIE}=")
+                and "HttpOnly" in header
+                and "SameSite=Lax" in header
+                for header in first_response.headers.getlist("Set-Cookie")
+            )
+        )
+        self.assertFalse(
+            any(
+                header.startswith(f"{project.LIKE_VOTER_COOKIE}=")
+                for header in second_response.headers.getlist("Set-Cookie")
+            )
+        )
 
     def test_like_icons_are_served(self):
         for filename in ("LikeIcon1.png", "LikeIcon2.png"):
@@ -54,7 +83,7 @@ class LikeRouteTests(unittest.TestCase):
             }
         ]
         with (
-            patch.object(project, "_like_ip_hash", return_value="hashed-ip"),
+            patch.object(project, "_like_voter_hash", return_value="hashed-voter"),
             patch.object(project, "_list_like_states", return_value=states) as load_likes,
         ):
             response = self.client.post(
@@ -65,12 +94,12 @@ class LikeRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["likes"], states)
         self.assertEqual(response.headers["Cache-Control"], "no-store")
-        load_likes.assert_called_once_with([self.image["storage_id"]], "hashed-ip")
+        load_likes.assert_called_once_with([self.image["storage_id"]], "hashed-voter")
 
     def test_like_image_adds_a_vote(self):
         with (
             patch.object(project, "_list_image_entries", return_value=[self.image]),
-            patch.object(project, "_like_ip_hash", return_value="hashed-ip"),
+            patch.object(project, "_like_voter_hash", return_value="hashed-voter"),
             patch.object(project, "_change_like", return_value=2) as change_like,
         ):
             response = self.client.post(
@@ -87,13 +116,13 @@ class LikeRouteTests(unittest.TestCase):
         change_like.assert_called_once_with(
             "image",
             self.image["storage_id"],
-            "hashed-ip",
+            "hashed-voter",
             True,
         )
 
     def test_unlike_comment_removes_a_vote(self):
         with (
-            patch.object(project, "_like_ip_hash", return_value="hashed-ip"),
+            patch.object(project, "_like_voter_hash", return_value="hashed-voter"),
             patch.object(project, "_change_like", return_value=1) as change_like,
         ):
             response = self.client.delete(
@@ -104,7 +133,7 @@ class LikeRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["target_id"], "8")
         self.assertFalse(response.get_json()["liked"])
-        change_like.assert_called_once_with("comment", "8", "hashed-ip", False)
+        change_like.assert_called_once_with("comment", "8", "hashed-voter", False)
 
     def test_like_requires_secret_key(self):
         project.app.config["SECRET_KEY"] = None
