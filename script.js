@@ -135,6 +135,7 @@ function openImageModal(image, figure) {
     commentContent.value = "";
     commentLength.textContent = "0/150";
     commentStatus.textContent = "";
+    submitCommentButton.disabled = false;
     imageComments.hidden = !image.storage_id;
     modal.setAttribute("aria-hidden", "false");
     modal.classList.remove("hidden");
@@ -193,7 +194,7 @@ function closeReportDialog() {
 function displayImageComments(comments) {
     unregisterLikeControlsWithin(imageCommentList);
     imageCommentList.replaceChildren();
-    document.getElementById("commentCount").textContent = `(${comments.length})`;
+    setCommentCount(comments.length);
     if (!comments.length) {
         const emptyMessage = document.createElement("p");
         emptyMessage.textContent = "No comments yet.";
@@ -202,84 +203,99 @@ function displayImageComments(comments) {
     }
 
     comments.forEach((comment) => {
-        const item = document.createElement("article");
-        item.className = "imageComment";
-
-        const heading = document.createElement("p");
-        heading.className = "imageCommentHeading";
-        heading.textContent =
-            `${comment.author} · ${new Date(comment.created_at).toLocaleString()}`;
-
-        const content = document.createElement("p");
-        content.className = "imageCommentContent";
-        content.textContent = comment.content;
-
-        const likeControlsForComment = createLikeControls(
-            "comment",
-            String(comment.id),
-            comment.image_id
-        );
-
-        const reportButton = document.createElement("button");
-        reportButton.type = "button";
-        reportButton.className = "reportCommentButton";
-        reportButton.textContent = "Report";
-
-        const reportForm = document.createElement("form");
-        reportForm.className = "commentReportForm";
-        reportForm.hidden = true;
-        const reasonLabel = document.createElement("label");
-        reasonLabel.textContent = "Why are you reporting this comment?";
-        const reason = document.createElement("textarea");
-        reason.maxLength = 5000;
-        reason.required = true;
-        const status = document.createElement("p");
-        status.setAttribute("role", "status");
-        const cancel = document.createElement("button");
-        cancel.type = "button";
-        cancel.textContent = "Cancel";
-        const submit = document.createElement("button");
-        submit.type = "submit";
-        submit.textContent = "Send report";
-        const actions = document.createElement("div");
-        actions.className = "commentReportActions";
-        actions.append(cancel, submit);
-        reportForm.append(reasonLabel, reason, status, actions);
-
-        reportButton.addEventListener("click", () => {
-            reportForm.hidden = !reportForm.hidden;
-        });
-        cancel.addEventListener("click", () => {
-            reportForm.reset();
-            status.textContent = "";
-            reportForm.hidden = true;
-        });
-        reportForm.addEventListener("submit", async (event) => {
-            event.preventDefault();
-            submit.disabled = true;
-            status.textContent = "Submitting report...";
-            try {
-                const response = await fetch(`/comments/${comment.id}/report`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ reason: reason.value }),
-                });
-                const result = await readJsonResponse(response, "/comments/report");
-                if (!response.ok) {
-                    throw new Error(result.error || "The report could not be submitted.");
-                }
-                status.textContent = "Comment reported. Thank you.";
-                submit.disabled = true;
-                cancel.hidden = true;
-            } catch (error) {
-                status.textContent = error.message || "The report could not be submitted.";
-                submit.disabled = false;
-            }
-        });
-
-        item.append(heading, content, likeControlsForComment.container, reportButton, reportForm);
-        imageCommentList.appendChild(item);
+        imageCommentList.appendChild(createImageCommentItem(comment));
     });
+}
+
+function setCommentCount(count) {
+    document.getElementById("commentCount").textContent = `(${count})`;
+}
+
+function createImageCommentItem(comment, pending = false) {
+    const item = document.createElement("article");
+    item.className = "imageComment";
+    if (pending) {
+        item.classList.add("is-pending");
+    }
+
+    const heading = document.createElement("p");
+    heading.className = "imageCommentHeading";
+    heading.textContent =
+        `${comment.author} · ${new Date(comment.created_at).toLocaleString()}`;
+
+    const content = document.createElement("p");
+    content.className = "imageCommentContent";
+    content.textContent = comment.content;
+
+    const likeControlsForComment = createLikeControls(
+        "comment",
+        String(comment.id),
+        comment.image_id
+    );
+    if (pending) {
+        likeControlsForComment.control.button.disabled = true;
+    }
+
+    const reportButton = document.createElement("button");
+    reportButton.type = "button";
+    reportButton.className = "reportCommentButton";
+    reportButton.textContent = "Report";
+    reportButton.disabled = pending;
+
+    const reportForm = document.createElement("form");
+    reportForm.className = "commentReportForm";
+    reportForm.hidden = true;
+    const reasonLabel = document.createElement("label");
+    reasonLabel.textContent = "Why are you reporting this comment?";
+    const reason = document.createElement("textarea");
+    reason.maxLength = 5000;
+    reason.required = true;
+    const status = document.createElement("p");
+    status.setAttribute("role", "status");
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.textContent = "Cancel";
+    const submit = document.createElement("button");
+    submit.type = "submit";
+    submit.textContent = "Send report";
+    const actions = document.createElement("div");
+    actions.className = "commentReportActions";
+    actions.append(cancel, submit);
+    reportForm.append(reasonLabel, reason, status, actions);
+
+    reportButton.addEventListener("click", () => {
+        reportForm.hidden = !reportForm.hidden;
+    });
+    cancel.addEventListener("click", () => {
+        reportForm.reset();
+        status.textContent = "";
+        reportForm.hidden = true;
+    });
+    reportForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        submit.disabled = true;
+        status.textContent = "Submitting report...";
+        try {
+            const response = await fetch(`/comments/${comment.id}/report`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ reason: reason.value }),
+            });
+            const result = await readJsonResponse(response, "/comments/report");
+            if (!response.ok) {
+                throw new Error(result.error || "The report could not be submitted.");
+            }
+            status.textContent = "Comment reported. Thank you.";
+            submit.disabled = true;
+            cancel.hidden = true;
+        } catch (error) {
+            status.textContent = error.message || "The report could not be submitted.";
+            submit.disabled = false;
+        }
+    });
+
+    item.append(heading, content, likeControlsForComment.container, reportButton, reportForm);
+    return item;
 }
 
 function likeStateKey(targetType, targetId) {
@@ -418,11 +434,20 @@ async function loadLikesForImages(images) {
 async function toggleLike(targetType, targetId, control) {
     const key = likeStateKey(targetType, targetId);
     const currentState = likeStates.get(key) || { count: 0, liked: false };
+    const optimisticState = {
+        count: Math.max(0, currentState.count + (currentState.liked ? -1 : 1)),
+        liked: !currentState.liked,
+    };
     const controls = likeControls.get(key) || [control];
+    likeStates.set(key, optimisticState);
     controls.forEach((likeControl) => {
+        updateLikeControl(likeControl, optimisticState);
         likeControl.button.disabled = true;
-        likeControl.status.textContent = "Updating...";
+        likeControl.status.textContent = "Saving...";
     });
+    if (targetType === "image" && imageSortMode === "liked") {
+        sortGalleryImages();
+    }
     try {
         const response = await fetch("/likes", {
             method: currentState.liked ? "DELETE" : "POST",
@@ -446,11 +471,14 @@ async function toggleLike(targetType, targetId, control) {
             sortGalleryImages();
         }
     } catch (error) {
+        likeStates.set(key, currentState);
         (likeControls.get(key) || [control]).forEach((likeControl) => {
-            likeControl.button.disabled = false;
-            likeControl.status.textContent =
-                error.message || "The like could not be updated.";
+            updateLikeControl(likeControl, currentState);
+            likeControl.status.textContent = error.message || "The like could not be updated.";
         });
+        if (targetType === "image" && imageSortMode === "liked") {
+            sortGalleryImages();
+        }
     }
 }
 
@@ -731,8 +759,23 @@ commentForm.addEventListener("submit", async (event) => {
     }
 
     const commentImage = activeImage;
+    const optimisticComment = {
+        id: `pending-${Date.now()}`,
+        image_id: commentImage.storage_id,
+        author: commentAuthor.value.trim(),
+        content: commentContent.value.trim(),
+        created_at: new Date().toISOString(),
+    };
+    const emptyMessage = imageCommentList.querySelector(":scope > p");
+    if (emptyMessage) {
+        emptyMessage.remove();
+    }
+    const optimisticItem = createImageCommentItem(optimisticComment, true);
+    imageCommentList.appendChild(optimisticItem);
+    setCommentCount(imageCommentList.querySelectorAll(".imageComment").length);
+
     submitCommentButton.disabled = true;
-    commentStatus.textContent = "Posting comment...";
+    commentStatus.textContent = "Posting...";
     try {
         const response = await fetch("/comments", {
             method: "POST",
@@ -748,16 +791,33 @@ commentForm.addEventListener("submit", async (event) => {
             throw new Error(result.error || "The comment could not be posted.");
         }
 
-        commentForm.reset();
-        commentLength.textContent = "0/150";
         if (activeImage?.storage_id === commentImage.storage_id) {
+            const confirmedComment = result.comment;
+            unregisterLikeControlsWithin(optimisticItem);
+            optimisticItem.replaceWith(createImageCommentItem(confirmedComment));
+            commentForm.reset();
+            commentLength.textContent = "0/150";
             commentStatus.textContent = "Comment posted.";
-            await loadImageComments(commentImage);
+            setCommentCount(imageCommentList.querySelectorAll(".imageComment").length);
+            loadImageComments(commentImage);
         }
     } catch (error) {
-        commentStatus.textContent = error.message || "The comment could not be posted.";
+        optimisticItem.remove();
+        unregisterLikeControlsWithin(optimisticItem);
+        if (activeImage?.storage_id === commentImage.storage_id) {
+            const remainingComments = imageCommentList.querySelectorAll(".imageComment");
+            setCommentCount(remainingComments.length);
+            if (!remainingComments.length) {
+                const emptyMessageAfterRollback = document.createElement("p");
+                emptyMessageAfterRollback.textContent = "No comments yet.";
+                imageCommentList.appendChild(emptyMessageAfterRollback);
+            }
+            commentStatus.textContent = error.message || "The comment could not be posted.";
+        }
     } finally {
-        submitCommentButton.disabled = false;
+        if (activeImage?.storage_id === commentImage.storage_id) {
+            submitCommentButton.disabled = false;
+        }
     }
 });
 document.getElementById("cancelReport").addEventListener("click", closeReportDialog);

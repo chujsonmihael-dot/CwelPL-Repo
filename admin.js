@@ -9,6 +9,8 @@ const adminImageReportsList = document.getElementById("adminImageReportsList");
 const adminCommentReportsList = document.getElementById("adminCommentReportsList");
 const logoutButton = document.getElementById("logoutButton");
 let csrfToken = "";
+let currentReports = [];
+let reportActionInProgress = false;
 
 async function readAdminResponse(response) {
     const result = await response.json();
@@ -24,7 +26,10 @@ function showLogin() {
     adminReports.hidden = true;
     logoutButton.hidden = true;
     csrfToken = "";
+    currentReports = [];
     adminImages.replaceChildren();
+    adminImageReportsList.replaceChildren();
+    adminCommentReportsList.replaceChildren();
 }
 
 function showAdmin() {
@@ -47,6 +52,7 @@ function displayAdminImages(images) {
     images.forEach((image) => {
         const card = document.createElement("article");
         card.className = "adminImage";
+        card.dataset.storageId = image.storage_id;
 
         const preview = document.createElement("img");
         preview.src = image.url;
@@ -91,6 +97,10 @@ function displayAdminReportGroup(reportList, reports, emptyMessageText) {
     reports.forEach((report) => {
         const card = document.createElement("article");
         card.className = "adminReport";
+        card.dataset.reportId = report.id;
+        if (report.pending) {
+            card.classList.add("is-pending");
+        }
         const isReviewed = report.status === "reviewed";
         if (isReviewed) {
             card.classList.add("adminReportReviewed");
@@ -196,9 +206,10 @@ async function loadAdminReports() {
     try {
         const result = await readAdminResponse(await fetch("/admin/reports"));
         csrfToken = result.csrf_token;
+        currentReports = result.reports;
         adminReportsError.hidden = true;
         adminReportsError.textContent = "";
-        displayAdminReports(result.reports);
+        displayAdminReports(currentReports);
     } catch (error) {
         adminImageReportsList.replaceChildren();
         adminCommentReportsList.replaceChildren();
@@ -208,20 +219,43 @@ async function loadAdminReports() {
 }
 
 async function runReportAction(report, action, endpoint, method, confirmMessage) {
+    if (reportActionInProgress) {
+        return;
+    }
     if (confirmMessage && !window.confirm(confirmMessage)) {
         return;
     }
 
+    const previousReports = currentReports;
+    const previousStatus = report.status;
+    reportActionInProgress = true;
+    if (method === "DELETE") {
+        currentReports = currentReports.filter((item) => item.id !== report.id);
+    } else {
+        report.status = endpoint === "/review" ? "reviewed" : "open";
+        report.pending = true;
+    }
+    displayAdminReports(currentReports);
+    adminReports.querySelectorAll(".adminReportActions button").forEach((button) => {
+        button.disabled = true;
+    });
     adminStatus.textContent = `${action} report #${report.id}...`;
     try {
         await readAdminResponse(await fetch(`/admin/reports/${report.id}${endpoint}`, {
             method,
             headers: { "X-CSRF-Token": csrfToken },
         }));
+        report.pending = false;
+        displayAdminReports(currentReports);
         adminStatus.textContent = `Report #${report.id} updated.`;
-        await loadAdminReports();
     } catch (error) {
+        report.status = previousStatus;
+        report.pending = false;
+        currentReports = previousReports;
+        displayAdminReports(currentReports);
         adminStatus.textContent = error.message || `Could not ${action.toLowerCase()} report.`;
+    } finally {
+        reportActionInProgress = false;
     }
 }
 
@@ -233,6 +267,15 @@ async function deleteReportedImage(report, button, preview) {
     }
 
     button.disabled = true;
+    const originalPreview = preview;
+    const deletedMessage = document.createElement("p");
+    deletedMessage.className = "adminReportImageDeleted";
+    deletedMessage.textContent = "Deleting image...";
+    preview.replaceWith(deletedMessage);
+    const imageCard = Array.from(adminImages.querySelectorAll(".adminImage"))
+        .find((card) => card.dataset.storageId === report.image_id);
+    const imageCardNextSibling = imageCard?.nextSibling || null;
+    imageCard?.remove();
     adminStatus.textContent = `Deleting image from report #${report.id}...`;
     try {
         await readAdminResponse(await fetch(
@@ -243,13 +286,17 @@ async function deleteReportedImage(report, button, preview) {
             }
         ));
         button.textContent = "Image deleted";
-        const deletedMessage = document.createElement("p");
-        deletedMessage.className = "adminReportImageDeleted";
         deletedMessage.textContent = "Image deleted";
-        preview.replaceWith(deletedMessage);
+        if (!adminImages.querySelector(".adminImage")) {
+            displayAdminImages([]);
+        }
         adminStatus.textContent = `Image from report #${report.id} deleted.`;
     } catch (error) {
         button.disabled = false;
+        deletedMessage.replaceWith(originalPreview);
+        if (imageCard) {
+            adminImages.insertBefore(imageCard, imageCardNextSibling);
+        }
         adminStatus.textContent = error.message || "Could not delete the image.";
     }
 }
@@ -260,6 +307,11 @@ async function deleteReportedComment(report, button, reportedComment) {
     }
 
     button.disabled = true;
+    const originalComment = reportedComment;
+    const deletedMessage = document.createElement("p");
+    deletedMessage.className = "adminReportImageDeleted";
+    deletedMessage.textContent = "Deleting comment...";
+    reportedComment.replaceWith(deletedMessage);
     adminStatus.textContent = `Deleting comment from report #${report.id}...`;
     try {
         await readAdminResponse(await fetch(
@@ -270,13 +322,11 @@ async function deleteReportedComment(report, button, reportedComment) {
             }
         ));
         button.textContent = "Comment deleted";
-        const deletedMessage = document.createElement("p");
-        deletedMessage.className = "adminReportImageDeleted";
         deletedMessage.textContent = "Comment deleted";
-        reportedComment.replaceWith(deletedMessage);
         adminStatus.textContent = `Comment from report #${report.id} deleted.`;
     } catch (error) {
         button.disabled = false;
+        deletedMessage.replaceWith(originalComment);
         adminStatus.textContent = error.message || "Could not delete the comment.";
     }
 }
@@ -325,6 +375,11 @@ async function deleteImage(image, card) {
         return;
     }
 
+    const nextSibling = card.nextSibling;
+    const placeholder = document.createElement("p");
+    placeholder.className = "adminImage adminImagePending";
+    placeholder.textContent = `Deleting ${image.filename}...`;
+    card.replaceWith(placeholder);
     adminStatus.textContent = `Deleting ${image.filename}...`;
     try {
         await readAdminResponse(await fetch(
@@ -334,12 +389,16 @@ async function deleteImage(image, card) {
                 headers: { "X-CSRF-Token": csrfToken },
             }
         ));
-        card.remove();
+        placeholder.remove();
         if (!adminImages.querySelector(".adminImage")) {
             displayAdminImages([]);
         }
         adminStatus.textContent = "Image deleted.";
     } catch (error) {
+        placeholder.replaceWith(card);
+        if (nextSibling && nextSibling.parentNode === adminImages) {
+            adminImages.insertBefore(card, nextSibling);
+        }
         adminStatus.textContent = error.message || "The image could not be deleted.";
     }
 }
