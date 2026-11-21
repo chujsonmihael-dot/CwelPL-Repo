@@ -87,12 +87,11 @@ body {
 #uploadSection {
     display: grid;
     grid-template-columns: auto minmax(100px, 1fr) auto;
-    grid-template-rows: 40px 14px;
+    grid-template-rows: 40px 40px 14px;
     align-items: center;
     gap: 8px;
     width: fit-content;
     max-width: min(100%, 420px);
-    height: 88px;
     box-sizing: border-box;
     background-color: #4a4a4a;
     padding: 10px;
@@ -139,6 +138,23 @@ body {
     text-align: center;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+#uploadImageName {
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
+    border: 2px solid #222222;
+    border-radius: 8px;
+    background-color: #e5e5e5;
+    color: #000000;
+    padding: 8px;
+    font: inherit;
+}
+
+.imageNameControl {
+    text-align: right;
+    font-size: 14px;
 }
 
 #uploadButton:disabled {

@@ -693,6 +693,7 @@ async function refreshUploadedImages() {
 
 async function uploadImage() {
     const input = document.getElementById("input");
+    const nameInput = document.getElementById("uploadImageName");
     const status = document.getElementById("uploadStatus");
     const uploadButton = document.getElementById("uploadButton");
     const selectedFile = input.files[0];
@@ -709,6 +710,7 @@ async function uploadImage() {
         const imageToUpload = await optimizeImage(selectedFile);
         const formData = new FormData();
         formData.append("image", imageToUpload);
+        formData.append("name", nameInput.value.trim());
         status.textContent = imageToUpload === selectedFile
             ? "Uploading image..."
             : "Uploading optimized image...";
@@ -729,6 +731,7 @@ async function uploadImage() {
         sortGalleryImages();
         status.textContent = "Image uploaded successfully.";
         input.value = "";
+        nameInput.value = "";
         document.getElementById("selectedFileName").textContent = "No file chosen";
     } catch (error) {
         status.textContent = error.message || "Could not optimize or upload the image.";

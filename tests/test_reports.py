@@ -1,4 +1,6 @@
 import unittest
+import io
+import tempfile
 from datetime import datetime, timezone
 from unittest.mock import patch
 
@@ -35,6 +37,50 @@ class ReportRouteTests(unittest.TestCase):
         }
         project.DATABASE_URL = "postgresql://test"
         project.ADMIN_PASSWORD = "test-admin-password"
+
+    def test_upload_accepts_repeated_custom_image_names(self):
+        png_data = b"\x89PNG\r\n\x1a\n" + b"test"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch.object(project, "USE_BLOB_STORAGE", False),
+                patch.object(project, "IMAGE_DIR", project.Path(temp_dir)),
+                patch.object(project, "_save_image_name") as save_name,
+            ):
+                response = self.client.post(
+                    "/upload",
+                    data={
+                        "image": (io.BytesIO(png_data), "original-name.png"),
+                        "name": "Shared name",
+                    },
+                    content_type="multipart/form-data",
+                )
+
+        self.assertEqual(response.status_code, 201)
+        result = response.get_json()
+        self.assertEqual(result["filename"], "Shared name")
+        save_name.assert_called_once()
+        self.assertEqual(save_name.call_args.args[1], "Shared name")
+
+    def test_upload_with_empty_name_keeps_original_filename(self):
+        png_data = b"\x89PNG\r\n\x1a\n" + b"test"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch.object(project, "USE_BLOB_STORAGE", False),
+                patch.object(project, "IMAGE_DIR", project.Path(temp_dir)),
+                patch.object(project, "_save_image_name") as save_name,
+            ):
+                response = self.client.post(
+                    "/upload",
+                    data={
+                        "image": (io.BytesIO(png_data), "original-name.png"),
+                        "name": "",
+                    },
+                    content_type="multipart/form-data",
+                )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.get_json()["filename"], "original-name.png")
+        save_name.assert_not_called()
 
     def test_report_is_saved_for_admin_review_without_email_configuration(self):
         with (

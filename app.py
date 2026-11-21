@@ -35,6 +35,7 @@ MAX_REPORT_LENGTH = 5000
 MAX_REPORTS_PER_HOUR = 5
 MAX_COMMENT_NAME_LENGTH = 32
 MAX_COMMENT_LENGTH = 150
+MAX_IMAGE_NAME_LENGTH = 100
 LIKE_VOTER_COOKIE = "cwel_like_voter"
 LIKE_VOTER_COOKIE_MAX_AGE = 60 * 60 * 24 * 365
 app.config["SESSION_COOKIE_SECURE"] = USE_BLOB_STORAGE
@@ -155,6 +156,11 @@ def _list_image_entries():
         key=lambda item: _get_time_value(item.get("uploaded_at")),
         reverse=True,
     )
+    custom_names = _load_image_names()
+    for entry in entries:
+        custom_name = custom_names.get(entry["storage_id"], "").strip()
+        if custom_name:
+            entry["filename"] = custom_name
     return entries
 
 
@@ -180,6 +186,15 @@ def _admin_request_is_valid():
 
 
 def _ensure_reports_table(connection):
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS cwel_image_names (
+            storage_id TEXT PRIMARY KEY,
+            display_name TEXT NOT NULL CHECK (char_length(display_name) <= 100),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS cwel_reports (
@@ -270,6 +285,62 @@ def _ensure_reports_table(connection):
         "CREATE INDEX IF NOT EXISTS cwel_likes_target_idx "
         "ON cwel_likes (target_type, target_id)"
     )
+
+
+def _save_image_name(storage_id, display_name):
+    if not DATABASE_URL:
+        return
+    with psycopg.connect(
+        DATABASE_URL,
+        connect_timeout=5,
+    ) as connection:
+        _ensure_reports_table(connection)
+        connection.execute(
+            """
+            INSERT INTO cwel_image_names (storage_id, display_name)
+            VALUES (%s, %s)
+            ON CONFLICT (storage_id)
+            DO UPDATE SET display_name = EXCLUDED.display_name,
+                          updated_at = CURRENT_TIMESTAMP
+            """,
+            (storage_id, display_name),
+        )
+
+
+def _delete_image_name(storage_id):
+    if not DATABASE_URL:
+        return
+    with psycopg.connect(
+        DATABASE_URL,
+        connect_timeout=5,
+    ) as connection:
+        _ensure_reports_table(connection)
+        connection.execute(
+            "DELETE FROM cwel_image_names WHERE storage_id = %s",
+            (storage_id,),
+        )
+
+
+def _load_image_names():
+    if not DATABASE_URL:
+        return {}
+    try:
+        with psycopg.connect(
+            DATABASE_URL,
+            connect_timeout=5,
+            row_factory=dict_row,
+        ) as connection:
+            _ensure_reports_table(connection)
+            rows = connection.execute(
+                "SELECT storage_id, display_name FROM cwel_image_names"
+            ).fetchall()
+        return {
+            row["storage_id"]: row["display_name"]
+            for row in rows
+        }
+    except psycopg.Error:
+        app.logger.exception("Failed to load custom image names")
+        return {}
 
 
 def _report_to_dict(report):
@@ -894,6 +965,11 @@ def admin_delete_image(storage_id):
             app.logger.exception("Failed to delete local image '%s'", storage_id)
             return jsonify(error="The image could not be deleted."), 500
 
+    try:
+        _delete_image_name(storage_id)
+    except psycopg.Error:
+        app.logger.exception("Failed to delete custom name for image '%s'", storage_id)
+
     return jsonify(success=True)
 
 
@@ -1047,6 +1123,12 @@ def upload_image():
     if uploaded_file is None or not uploaded_file.filename:
         return jsonify(error="Choose an image to upload."), 400
 
+    custom_name = request.form.get("name", "").strip()
+    if len(custom_name) > MAX_IMAGE_NAME_LENGTH:
+        return jsonify(error=f"Image name must be {MAX_IMAGE_NAME_LENGTH} characters or fewer."), 400
+    if custom_name and not DATABASE_URL:
+        return jsonify(error="Image names are not configured. Please try again without a name."), 503
+
     image_data = uploaded_file.read()
     if not image_data:
         return jsonify(error="The selected image is empty."), 400
@@ -1080,16 +1162,32 @@ def upload_image():
         except BlobError:
             app.logger.exception("Failed to upload image to Vercel Blob")
             return jsonify(error="Image storage is unavailable. Check the Vercel Blob store configuration."), 503
+        if custom_name:
+            try:
+                _save_image_name(storage_filename, custom_name)
+            except psycopg.Error:
+                app.logger.exception("Failed to save custom name for uploaded image")
+                return jsonify(error="The image was uploaded, but its custom name could not be saved."), 503
         return jsonify(
-            filename=display_filename,
+            filename=custom_name or display_filename,
             url=uploaded_blob.url,
             uploaded_at=uploaded_at,
             storage_id=storage_filename,
         ), 201
 
-    (IMAGE_DIR / storage_filename).write_bytes(image_data)
+    try:
+        (IMAGE_DIR / storage_filename).write_bytes(image_data)
+    except OSError:
+        app.logger.exception("Failed to save uploaded image locally")
+        return jsonify(error="The image could not be saved."), 500
+    if custom_name:
+        try:
+            _save_image_name(storage_filename, custom_name)
+        except psycopg.Error:
+            app.logger.exception("Failed to save custom name for uploaded image")
+            return jsonify(error="The image was uploaded, but its custom name could not be saved."), 503
     return jsonify(
-        filename=display_filename,
+        filename=custom_name or display_filename,
         url=f"/images/{storage_filename}",
         uploaded_at=uploaded_at,
         storage_id=storage_filename,

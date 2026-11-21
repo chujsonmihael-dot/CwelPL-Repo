@@ -14,6 +14,8 @@
             <input type="file" id="input" accept="image/png,image/jpeg,image/gif,image/webp">
             <label class="uploadControl" for="input">Choose file</label>
             <span id="selectedFileName" aria-live="polite">No file chosen</span>
+            <label class="imageNameControl" for="uploadImageName">Image name</label>
+            <input id="uploadImageName" name="imageName" type="text" maxlength="100" placeholder="Optional">
             <button id="uploadButton" type="button" onclick="uploadImage()">Upload</button>
             <p id="uploadStatus" role="status"></p>
         </div>
