@@ -9,6 +9,7 @@
     background-color: #4a4a4a;
     border: 3px solid #222222;
     position: relative;
+    padding-top: 58px;
 }
 
 .imageItem {
@@ -67,8 +68,17 @@ body {
     padding: 16px;
 }
 
+.noticeRow {
+    display: flex;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
 #contentNotice {
-    margin: 8px 8px 16px;
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 8px 0;
     font-size: 18px;
     line-height: 1.5;
     background-color: #4a4a4a;
@@ -619,13 +629,12 @@ body {
     align-items: center;
     width: fit-content;
     flex: 0 0 auto;
-    margin-left: auto;
+    align-self: center;
     padding: 8px 12px;
-    height: 88px;
     box-sizing: border-box;
     border-radius: var(--panel-radius);
     background-color: #4a4a4a;
-    font-size: 48px;
+    font-size: 32px;
     color: #ffffff;
     text-decoration: none;
     border: 3px solid #222222;
@@ -633,12 +642,40 @@ body {
 
 .imageSortControls {
     display: flex;
-    align-self: center;
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 1;
     flex: 0 0 auto;
     overflow: hidden;
     border: 3px solid #222222;
     border-radius: var(--panel-radius);
     background-color: #4a4a4a;
+}
+
+@media (max-width: 600px) {
+    .noticeRow {
+        gap: 8px;
+    }
+
+    #contentNotice {
+        font-size: 15px;
+        line-height: 1.35;
+    }
+
+    .termsButton {
+        padding: 8px;
+        font-size: 24px;
+    }
+
+    .imageSortOption {
+        padding: 7px 8px;
+        font-size: 14px;
+    }
+
+    .refreshImagesButton {
+        padding: 7px 8px;
+    }
 }
 
 .imageSortOption {
