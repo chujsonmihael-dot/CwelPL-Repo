@@ -23,7 +23,7 @@
             <p id="uploadStatus" role="status"></p>
         </div>
     </div>
-    <div id="Images" aria-live="polite">
+    <div class="galleryHeader">
         <div id="imageSortControls" class="imageSortControls" role="group" aria-label="Sort images">
             <button class="imageSortOption" type="button" data-sort-mode="latest" aria-pressed="true" disabled>Latest</button>
             <button class="imageSortOption" type="button" data-sort-mode="liked" aria-pressed="false" disabled>Liked</button>
@@ -31,6 +31,7 @@
             <button id="refreshImagesButton" class="refreshImagesButton" type="button" aria-label="Refresh images" title="Refresh images" disabled>↻</button>
         </div>
     </div>
+    <div id="Images" aria-live="polite"></div>
 
     <div id="imageModal" class="imageModal hidden" aria-hidden="true">
         <button id="closeModal" class="closeModal" type="button" aria-label="Close image viewer">×</button>

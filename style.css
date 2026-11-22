@@ -9,7 +9,6 @@
     background-color: #4a4a4a;
     border: 3px solid #222222;
     position: relative;
-    padding-top: 58px;
 }
 
 .imageItem {
@@ -640,12 +639,14 @@ body {
     border: 3px solid #222222;
 }
 
+.galleryHeader {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 4px;
+}
+
 .imageSortControls {
     display: flex;
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    z-index: 1;
     flex: 0 0 auto;
     overflow: hidden;
     border: 3px solid #222222;
