@@ -88,11 +88,11 @@ body {
 
 .pageActions {
     display: flex;
-    align-items: flex-start;
+    align-items: flex-end;
     flex-wrap: wrap;
     justify-content: space-between;
     gap: 12px;
-    margin-bottom: 0;
+    margin-bottom: 16px;
 }
 
 #uploadSection {
