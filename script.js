@@ -559,7 +559,7 @@ function displayImage(image, prepend = false) {
 
     const gallery = document.getElementById("Images");
     if (prepend) {
-        gallery.insertBefore(figure, imageSortControls.nextSibling);
+        gallery.prepend(figure);
         return;
     }
 

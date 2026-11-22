@@ -90,6 +90,7 @@ body {
     display: flex;
     align-items: flex-start;
     flex-wrap: wrap;
+    justify-content: space-between;
     gap: 12px;
     margin-bottom: 0;
 }
@@ -640,19 +641,10 @@ body {
     border: 3px solid #222222;
 }
 
-.galleryHeader {
-    display: flex;
-    justify-content: flex-end;
-    flex: 0 0 100%;
-    height: 44px;
-}
-
 .imageSortControls {
     display: flex;
     align-items: stretch;
     flex: 0 0 auto;
-    height: 100%;
-    box-sizing: border-box;
     overflow: hidden;
     border: 3px solid #222222;
     border-radius: var(--panel-radius);
