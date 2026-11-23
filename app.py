@@ -96,6 +96,11 @@ def uploaded_image(filename):
     return send_from_directory(IMAGE_DIR, filename)
 
 
+@app.get("/title-image/<path:filename>")
+def title_image(filename):
+    return send_from_directory(BASE_DIR / "title-image", filename)
+
+
 def _get_time_value(value):
     if isinstance(value, (int, float)):
         return float(value)

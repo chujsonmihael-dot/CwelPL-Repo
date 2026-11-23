@@ -95,6 +95,16 @@ body {
     margin-bottom: 16px;
 }
 
+.siteTitleImage {
+    display: block;
+    flex: 0 1 240px;
+    width: 240px;
+    max-width: 100%;
+    max-height: 120px;
+    align-self: center;
+    object-fit: contain;
+}
+
 #uploadSection {
     display: grid;
     grid-template-columns: auto minmax(100px, 1fr) auto;
