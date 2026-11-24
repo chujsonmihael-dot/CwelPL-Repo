@@ -20,6 +20,7 @@ const reportFilename = document.getElementById("reportFilename");
 const reportReason = document.getElementById("reportReason");
 const reportStatus = document.getElementById("reportStatus");
 const submitReportButton = document.getElementById("submitReport");
+const siteTitleImage = document.getElementById("siteTitleImage");
 const imageSortControls = document.getElementById("imageSortControls");
 const imageSortButtons = Array.from(
     imageSortControls.querySelectorAll(".imageSortOption")
@@ -744,6 +745,21 @@ document.getElementById("input").addEventListener("change", (event) => {
     const input = event.currentTarget;
     document.getElementById("selectedFileName").textContent =
         input.files[0]?.name || "No file chosen";
+});
+
+siteTitleImage.addEventListener("click", (event) => {
+    const bounds = siteTitleImage.getBoundingClientRect();
+    const isInsideImage =
+        event.clientX >= bounds.left
+        && event.clientX <= bounds.right
+        && event.clientY >= bounds.top
+        && event.clientY <= bounds.bottom;
+    if (!isInsideImage) {
+        return;
+    }
+
+    siteTitleImage.src = "/title-image/ania-title.svg";
+    siteTitleImage.alt = "Ania";
 });
 
 reportImageButton.addEventListener("click", openReportDialog);
