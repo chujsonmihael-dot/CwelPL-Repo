@@ -38,6 +38,19 @@ class ReportRouteTests(unittest.TestCase):
         project.DATABASE_URL = "postgresql://test"
         project.ADMIN_PASSWORD = "test-admin-password"
 
+    def test_root_redirects_to_canonical_index_without_caching(self):
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], "/index.html")
+        self.assertEqual(response.headers["Cache-Control"], "no-store")
+
+    def test_index_html_serves_the_main_page(self):
+        response = self.client.get("/index.html")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'id="contentNotice"', response.data)
+
     def test_upload_accepts_repeated_custom_image_names(self):
         png_data = b"\x89PNG\r\n\x1a\n" + b"test"
         with tempfile.TemporaryDirectory() as temp_dir:

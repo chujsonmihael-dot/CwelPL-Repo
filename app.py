@@ -8,7 +8,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from dotenv import load_dotenv
-from flask import Flask, g, jsonify, request, send_from_directory, session
+from flask import Flask, g, jsonify, redirect, request, send_from_directory, session
 from itsdangerous import BadSignature, URLSafeSerializer
 import psycopg
 from psycopg.rows import dict_row
@@ -55,10 +55,16 @@ def get_display_filename(storage_filename):
     return storage_filename.split("__", 1)[-1]
 
 
-@app.get("/")
 @app.get("/index.html")
 def index():
     return send_from_directory(BASE_DIR, "index.html")
+
+
+@app.get("/")
+def root():
+    response = redirect("/index.html", code=302)
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.get("/terms.html")
