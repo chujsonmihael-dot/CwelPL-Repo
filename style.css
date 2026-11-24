@@ -103,7 +103,6 @@ body {
     max-height: 120px;
     align-self: center;
     object-fit: contain;
-    cursor: pointer;
 }
 
 #uploadSection {
