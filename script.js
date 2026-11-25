@@ -29,6 +29,7 @@ const refreshImagesButton = document.getElementById("refreshImagesButton");
 let activeImageFigure = null;
 let activeImageIndex = -1;
 let activeImage = null;
+let titleKeySequenceIndex = 0;
 const likeStates = new Map();
 const likeControls = new Map();
 const loadedLikeImageIds = new Set();
@@ -884,6 +885,18 @@ modal.addEventListener("click", (event) => {
     }
 });
 document.addEventListener("keydown", (event) => {
+    const titleSequence = ["a", "b", "c"];
+    if (event.key.toLowerCase() === titleSequence[titleKeySequenceIndex]) {
+        titleKeySequenceIndex += 1;
+        if (titleKeySequenceIndex === titleSequence.length) {
+            siteTitleImage.src = "/title-image/abc-title.svg";
+            siteTitleImage.alt = "ABC";
+            titleKeySequenceIndex = 0;
+        }
+    } else {
+        titleKeySequenceIndex = 0;
+    }
+
     if (!reportDialog.hidden) {
         if (event.key === "Escape") {
             closeReportDialog();
