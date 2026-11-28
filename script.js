@@ -21,6 +21,7 @@ const reportReason = document.getElementById("reportReason");
 const reportStatus = document.getElementById("reportStatus");
 const submitReportButton = document.getElementById("submitReport");
 const siteTitleImage = document.getElementById("siteTitleImage");
+const imageCountLabel = document.getElementById("imageCount");
 const imageSortControls = document.getElementById("imageSortControls");
 const imageSortButtons = Array.from(
     imageSortControls.querySelectorAll(".imageSortOption")
@@ -30,6 +31,7 @@ let activeImageFigure = null;
 let activeImageIndex = -1;
 let activeImage = null;
 let titleKeySequenceIndex = 0;
+let availableImageCount = 0;
 const likeStates = new Map();
 const likeControls = new Map();
 const loadedLikeImageIds = new Set();
@@ -40,6 +42,11 @@ let imageSortMode = "latest";
 
 function getGalleryImages() {
     return Array.from(document.querySelectorAll(".imageItem"));
+}
+
+function updateImageCount(count) {
+    availableImageCount = count;
+    imageCountLabel.textContent = `Liczba cweli: ${count}`;
 }
 
 function sortGalleryImages() {
@@ -632,11 +639,15 @@ async function loadUploadedImages() {
         if (!response.ok) {
             throw new Error(result.error || "Saved images could not be loaded.");
         }
+        if (!Array.isArray(result.images)) {
+            throw new Error("The image list response was invalid.");
+        }
 
         const images = [...(result.images || [])].sort((a, b) => 
             getImageTimestamp(b) - getImageTimestamp(a)
         );
 
+        updateImageCount(images.length);
         images.forEach((image) => displayImage(image));
         likesLoadPromise = loadLikesForImages(images);
         await likesLoadPromise;
@@ -667,6 +678,7 @@ async function refreshUploadedImages() {
             throw new Error("The image refresh response was invalid.");
         }
 
+        updateImageCount(result.images.length);
         const existingIds = new Set(
             getGalleryImages().map((figure) => figure.dataset.storageId)
         );
@@ -728,6 +740,7 @@ async function uploadImage() {
         }
 
         displayImage(result, true);
+        updateImageCount(availableImageCount + 1);
         likesLoadPromise = loadLikesForImages([result]);
         await likesLoadPromise;
         sortGalleryImages();

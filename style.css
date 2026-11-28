@@ -96,14 +96,24 @@ body {
     margin-bottom: 16px;
 }
 
-.siteTitleImage {
-    display: block;
+.siteTitleBlock {
     flex: 0 1 240px;
     width: 240px;
     max-width: 100%;
-    max-height: 120px;
     align-self: center;
+    text-align: center;
+}
+
+.siteTitleImage {
+    display: block;
+    width: 100%;
+    max-height: 120px;
     object-fit: contain;
+}
+
+.imageCount {
+    margin: 4px 0 0;
+    font-size: 13px;
 }
 
 #uploadSection {
